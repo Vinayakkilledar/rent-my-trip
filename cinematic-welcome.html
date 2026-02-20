@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rent My Trip - Cinematic Welcome</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+
+        .cinematic-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Scene Management */
+        .scene {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+        }
+
+        .scene.active {
+            opacity: 1;
+        }
+
+        /* Space Background */
+        .space-background {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, #1a1a2e 0%, #0f0f1e 50%, #000000 100%);
+            overflow: hidden;
+        }
+
+        .stars {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(2px 2px at 20px 30px, white, transparent),
+                radial-gradient(2px 2px at 40px 70px, white, transparent),
+                radial-gradient(1px 1px at 50px 90px, white, transparent),
+                radial-gradient(1px 1px at 130px 80px, white, transparent),
+                radial-gradient(2px 2px at 80px 10px, white, transparent);
+            background-repeat: repeat;
+            background-size: 200px 200px;
+            animation: stars-move 200s linear infinite;
+        }
+
+        .stars2 {
+            background-image: 
+                radial-gradient(1px 1px at 10px 20px, white, transparent),
+                radial-gradient(1px 1px at 150px 40px, white, transparent),
+                radial-gradient(2px 2px at 60px 100px, white, transparent);
+            background-size: 150px 150px;
+            animation: stars-move 150s linear infinite reverse;
+        }
+
+        .stars3 {
+            background-image: 
+                radial-gradient(1px 1px at 90px 60px, white, transparent),
+                radial-gradient(2px 2px at 120px 30px, white, transparent);
+            background-size: 100px 100px;
+            animation: stars-move 100s linear infinite;
+        }
+
+        @keyframes stars-move {
+            from { transform: translateX(0); }
+            to { transform: translateX(-200px); }
+        }
+
+        /* 3D Globe */
+        .globe-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 400px;
+            perspective: 1000px;
+        }
+
+        .globe {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: globe-rotate 30s linear infinite;
+        }
+
+        .globe-surface {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            background: radial-gradient(circle at 30% 30%, #4a90e2, #2c5aa0);
+            border-radius: 50%;
+            box-shadow: 
+                0 0 50px rgba(74, 144, 226, 0.5),
+                inset -20px -20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .continent {
+            position: absolute;
+            background: linear-gradient(135deg, #228b22, #32cd32);
+            border-radius: 30%;
+            opacity: 0.8;
+        }
+
+        .continent1 {
+            width: 80px;
+            height: 120px;
+            top: 20%;
+            left: 30%;
+            transform: rotate(25deg);
+        }
+
+        .continent2 {
+            width: 60px;
+            height: 90px;
+            top: 50%;
+            left: 60%;
+            transform: rotate(-15deg);
+        }
+
+        .continent3 {
+            width: 100px;
+            height: 80px;
+            top: 60%;
+            left: 20%;
+            transform: rotate(45deg);
+        }
+
+        .glowing-road {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: #ffd700;
+            border-right-color: #ffd700;
+            animation: road-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes road-glow {
+            0%, 100% { 
+                box-shadow: 
+                    0 0 20px #ffd700,
+                    inset 0 0 20px #ffd700;
+            }
+            50% { 
+                box-shadow: 
+                    0 0 40px #ffd700,
+                    inset 0 0 40px #ffd700;
+            }
+        }
+
+        @keyframes globe-rotate {
+            from { transform: rotateY(0deg) rotateX(10deg); }
+            to { transform: rotateY(360deg) rotateX(10deg); }
+        }
+
+        /* Car Animation */
+        .car-driving {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 60px;
+            height: 30px;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+        }
+
+        .car-driving.active {
+            opacity: 1;
+            animation: car-orbit 8s linear infinite;
+        }
+
+        .car {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .car-body {
+            position: absolute;
+            width: 50px;
+            height: 20px;
+            background: linear-gradient(90deg, #ff6b6b, #ff8e53);
+            border-radius: 10px;
+            top: 5px;
+            left: 5px;
+            box-shadow: 0 2px 10px rgba(255, 107, 107, 0.5);
+        }
+
+        .car-window {
+            position: absolute;
+            width: 15px;
+            height: 10px;
+            background: linear-gradient(135deg, #4a90e2, #87ceeb);
+            border-radius: 3px;
+            top: 8px;
+            left: 25px;
+            opacity: 0.8;
+        }
+
+        .car-wheel {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #333;
+            border-radius: 50%;
+            border: 1px solid #666;
+        }
+
+        .wheel1 { top: 18px; left: 8px; }
+        .wheel2 { top: 18px; left: 35px; }
+        .wheel3 { top: 2px; left: 8px; }
+        .wheel4 { top: 2px; left: 35px; }
+
+        .glowing-trail {
+            position: absolute;
+            width: 100px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #ffd700, transparent);
+            top: 14px;
+            left: -50px;
+            animation: trail-glow 1s ease-in-out infinite;
+        }
+
+        @keyframes trail-glow {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes car-orbit {
+            from {
+                transform: translate(-50%, -50%) rotate(0deg) translateX(200px) rotate(0deg);
+            }
+            to {
+                transform: translate(-50%, -50%) rotate(360deg) translateX(200px) rotate(-360deg);
+            }
+        }
+
+        /* Welcome Text */
+        .welcome-text {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: white;
+            z-index: 10;
+            transition: opacity 2s ease-in-out;
+        }
+
+        .welcome-text.fade-out {
+            opacity: 0;
+        }
+
+        .main-title {
+            font-size: 4rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-shadow: 
+                0 0 20px rgba(255, 255, 255, 0.5),
+                2px 2px 4px rgba(0, 0, 0, 0.8);
+            animation: title-fade-in 2s ease-out;
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            animation: title-fade-in 2s ease-out 0.5s both;
+        }
+
+        @keyframes title-fade-in {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Transition Scene */
+        .transition-scene {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .phone-container {
+            perspective: 1000px;
+        }
+
+        .smartphone {
+            width: 200px;
+            height: 400px;
+            background: #1a1a1a;
+            border-radius: 30px;
+            border: 5px solid #333;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: phone-rotate 3s ease-in-out;
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #4a90e2, #87ceeb);
+            border-radius: 25px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .app-interface {
+            text-align: center;
+            color: white;
+            animation: app-zoom 2s ease-in-out;
+        }
+
+        .app-logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: logo-bounce 1s ease-in-out infinite;
+        }
+
+        @keyframes phone-rotate {
+            0% { transform: rotateY(0deg) scale(1); }
+            50% { transform: rotateY(180deg) scale(1.2); }
+            100% { transform: rotateY(360deg) scale(1); }
+        }
+
+        @keyframes app-zoom {
+            from { transform: scale(0); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes logo-bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* App Features Scene */
+        .app-scene {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .app-showcase {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            opacity: 0;
+            transform: translateY(50px);
+            transition: all 0.5s ease-out;
+        }
+
+        .feature.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature h4 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .travelers-showcase {
+            display: flex;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .traveler {
+            font-size: 3rem;
+            opacity: 0;
+            animation: traveler-appear 1s ease-out forwards;
+        }
+
+        .traveler1 { animation-delay: 0.5s; }
+        .traveler2 { animation-delay: 1s; }
+        .traveler3 { animation-delay: 1.5s; }
+
+        @keyframes traveler-appear {
+            from { 
+                opacity: 0; 
+                transform: scale(0) rotate(180deg); 
+            }
+            to { 
+                opacity: 1; 
+                transform: scale(1) rotate(0deg); 
+            }
+        }
+
+        /* Final Scene */
+        .final-scene {
+            background: linear-gradient(to bottom, #ff6b6b, #ffd700, #ff8e53);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sunset-background {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at bottom, #ffd700, #ff6b6b, transparent);
+            opacity: 0.6;
+        }
+
+        .final-car {
+            position: absolute;
+            bottom: 30%;
+            left: -100px;
+            animation: final-drive 5s ease-in-out forwards;
+        }
+
+        .car-silhouette {
+            width: 80px;
+            height: 40px;
+            background: #000;
+            border-radius: 10px;
+            position: relative;
+        }
+
+        .car-silhouette::before {
+            content: '';
+            position: absolute;
+            width: 30px;
+            height: 20px;
+            background: #000;
+            top: -15px;
+            left: 20px;
+            border-radius: 10px 10px 0 0;
+        }
+
+        @keyframes final-drive {
+            to {
+                left: 110%;
+            }
+        }
+
+        .final-logo {
+            text-align: center;
+            color: white;
+            z-index: 10;
+            animation: logo-appear 2s ease-out 1s both;
+        }
+
+        .logo-text {
+            font-size: 5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-shadow: 
+                0 0 30px rgba(255, 255, 255, 0.8),
+                3px 3px 6px rgba(0, 0, 0, 0.5);
+        }
+
+        .logo-subtitle {
+            font-size: 1.8rem;
+            margin-bottom: 2rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .adventure-btn {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: linear-gradient(45deg, #ff6b6b, #ff8e53);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+            animation: btn-glow 2s ease-in-out infinite;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .adventure-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+        }
+
+        @keyframes logo-appear {
+            from {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes btn-glow {
+            0%, 100% {
+                box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+            }
+            50% {
+                box-shadow: 0 4px 25px rgba(255, 107, 107, 0.8);
+            }
+        }
+
+        /* Music Indicator */
+        .music-indicator {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 20px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        .music-note {
+            font-size: 1.5rem;
+            animation: music-pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes music-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .globe-container {
+                width: 300px;
+                height: 300px;
+            }
+            
+            .main-title {
+                font-size: 2.5rem;
+            }
+            
+            .subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .app-showcase {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .logo-text {
+                font-size: 3rem;
+            }
+            
+            .logo-subtitle {
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="cinematic-container">
+        <!-- 3D Globe Scene -->
+        <div class="scene globe-scene active" id="globeScene">
+            <div class="space-background">
+                <div class="stars"></div>
+                <div class="stars stars2"></div>
+                <div class="stars stars3"></div>
+            </div>
+            
+            <div class="globe-container">
+                <div class="globe">
+                    <div class="globe-surface">
+                        <div class="continent continent1"></div>
+                        <div class="continent continent2"></div>
+                        <div class="continent continent3"></div>
+                        <div class="glowing-road"></div>
+                    </div>
+                </div>
+                
+                <div class="car-driving" id="carDriving">
+                    <div class="car">
+                        <div class="car-body"></div>
+                        <div class="car-window"></div>
+                        <div class="car-wheel wheel1"></div>
+                        <div class="car-wheel wheel2"></div>
+                        <div class="car-wheel wheel3"></div>
+                        <div class="car-wheel wheel4"></div>
+                        <div class="glowing-trail"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="welcome-text" id="welcomeText">
+                <h1 class="main-title">Welcome to Rent My Trip</h1>
+                <p class="subtitle">Your Journey, Your Choice</p>
+            </div>
+        </div>
+
+        <!-- Transition Scene -->
+        <div class="scene transition-scene" id="transitionScene">
+            <div class="phone-container">
+                <div class="smartphone">
+                    <div class="phone-screen">
+                        <div class="app-interface">
+                            <div class="app-logo">🚗</div>
+                            <h3>Rent My Trip</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- App Features Scene -->
+        <div class="scene app-scene" id="appScene">
+            <div class="app-showcase">
+                <div class="feature" id="feature1">
+                    <div class="feature-icon">🚙</div>
+                    <h4>Easy Vehicle Rentals</h4>
+                    <p>Choose from our wide range of vehicles</p>
+                </div>
+                
+                <div class="feature" id="feature2">
+                    <div class="feature-icon">🗺️</div>
+                    <h4>Customized Travel Packages</h4>
+                    <p>Tailored packages for your perfect trip</p>
+                </div>
+                
+                <div class="feature" id="feature3">
+                    <div class="feature-icon">💰</div>
+                    <h4>Affordable Pricing</h4>
+                    <p>Best rates guaranteed for every budget</p>
+                </div>
+                
+                <div class="feature" id="feature4">
+                    <div class="feature-icon">📱</div>
+                    <h4>One-Click Booking</h4>
+                    <p>Book your ride instantly with our app</p>
+                </div>
+            </div>
+
+            <div class="travelers-showcase">
+                <div class="traveler traveler1">🧑‍🎤</div>
+                <div class="traveler traveler2">👩‍💼</div>
+                <div class="traveler traveler3">🧑‍🎓</div>
+            </div>
+        </div>
+
+        <!-- Final Scene -->
+        <div class="scene final-scene" id="finalScene">
+            <div class="sunset-background"></div>
+            <div class="final-car">
+                <div class="car-silhouette"></div>
+            </div>
+            
+            <div class="final-logo">
+                <h1 class="logo-text">Rent My Trip</h1>
+                <p class="logo-subtitle">Start Your Adventure Today</p>
+                <a href="index.html" class="adventure-btn">
+                    🚀 Start Your Adventure
+                </a>
+            </div>
+        </div>
+
+        <!-- Background Music Indicator -->
+        <div class="music-indicator">
+            <div class="music-note">🎵</div>
+            <span>Inspiring Journey</span>
+        </div>
+    </div>
+
+    <script>
+        let currentScene = 0;
+        const scenes = ['globeScene', 'transitionScene', 'appScene', 'finalScene'];
+        
+        function transitionScenes() {
+            // Hide current scene
+            if (currentScene > 0) {
+                document.getElementById(scenes[currentScene - 1]).classList.remove('active');
+            }
+            
+            // Show current scene
+            document.getElementById(scenes[currentScene]).classList.add('active');
+            
+            // Scene-specific animations
+            if (currentScene === 0) {
+                // Globe scene animations
+                setTimeout(() => {
+                    document.getElementById('carDriving').classList.add('active');
+                }, 2000);
+                
+                setTimeout(() => {
+                    document.getElementById('welcomeText').classList.add('fade-out');
+                }, 6000);
+            } else if (currentScene === 2) {
+                // App features animations
+                setTimeout(() => {
+                    document.getElementById('feature1').classList.add('show');
+                }, 500);
+                
+                setTimeout(() => {
+                    document.getElementById('feature2').classList.add('show');
+                }, 1000);
+                
+                setTimeout(() => {
+                    document.getElementById('feature3').classList.add('show');
+                }, 1500);
+                
+                setTimeout(() => {
+                    document.getElementById('feature4').classList.add('show');
+                }, 2000);
+            }
+            
+            currentScene++;
+            
+            // Continue to next scene
+            if (currentScene < scenes.length) {
+                setTimeout(transitionScenes, currentScene === 1 ? 2000 : 5000);
+            }
+        }
+        
+        // Start the cinematic experience
+        setTimeout(transitionScenes, 1000);
+        
+        // Add ambient sound effect simulation
+        console.log('🎵 Playing inspiring background music...');
+        console.log('🎬 Cinematic experience started...');
+    </script>
+</body>
+</html>

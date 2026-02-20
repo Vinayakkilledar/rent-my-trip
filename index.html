@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rent My Trip</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .video-background {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            transform: translate(-50%, -50%);
+            z-index: -1;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+        }
+
+        .welcome-title {
+            font-size: 4rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .welcome-subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            animation: fadeInUp 1s ease-out 0.3s both;
+        }
+
+        .start-journey-btn {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: linear-gradient(45deg, #ff6b6b, #ff8e53);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+            animation: fadeInUp 1s ease-out 0.6s both;
+        }
+
+        .start-journey-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .auth-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .auth-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .auth-title {
+            text-align: center;
+            color: #333;
+            margin-bottom: 2rem;
+            font-size: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .user-type-selector {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .user-type-btn {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e1e1e1;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .user-type-btn.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .link-text {
+            text-align: center;
+            margin-top: 1rem;
+            color: #666;
+        }
+
+        .link-text a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .link-text a:hover {
+            text-decoration: underline;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Welcome Page -->
+    <div id="welcomePage" class="video-container">
+        <video class="video-background" autoplay loop muted playsInline>
+            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        
+        <div class="video-overlay">
+            <h1 class="welcome-title">Rent My Trip</h1>
+            <p class="welcome-subtitle">
+                Your perfect journey starts here. Rent vehicles for your adventures.
+            </p>
+            <button class="start-journey-btn" onclick="showRegistrationPage()">
+                Start My Journey
+            </button>
+        </div>
+    </div>
+
+    <!-- Registration Page -->
+    <div id="registrationPage" class="auth-container">
+        <div class="auth-card">
+            <h2 class="auth-title">Join Rent My Trip</h2>
+            
+            <div class="user-type-selector">
+                <button class="user-type-btn active" onclick="setUserType('customer', this)">
+                    Customer
+                </button>
+                <button class="user-type-btn" onclick="setUserType('driver', this)">
+                    Driver
+                </button>
+            </div>
+
+            <form onsubmit="handleRegistration(event)">
+                <div class="form-group">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" name="name" class="form-input" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-input" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" class="form-input" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Phone Number</label>
+                    <input type="tel" name="phone" class="form-input" required>
+                </div>
+
+                <div id="driverFields" class="hidden">
+                    <div class="form-group">
+                        <label class="form-label">License Number</label>
+                        <input type="text" name="licenseNumber" class="form-input" placeholder="Enter your driving license number">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Drive Type</label>
+                        <select name="driveType" class="form-input">
+                            <option value="">Select Drive Type</option>
+                            <option value="self-drive">🔑 Self Drive</option>
+                            <option value="with-driver">👨‍✈️ With Driver</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Car Name</label>
+                        <input type="text" name="carName" class="form-input" placeholder="e.g., Toyota, Honda, BMW">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Car Model</label>
+                        <input type="text" name="carModel" class="form-input" placeholder="e.g., Camry, Civic, X5">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Number of Seats</label>
+                        <select name="numberOfSeats" class="form-input">
+                            <option value="">Select Number of Seats</option>
+                            <option value="2">2 Seats</option>
+                            <option value="4">4 Seats</option>
+                            <option value="5">5 Seats</option>
+                            <option value="7">7 Seats</option>
+                            <option value="8">8 Seats</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Car Type</label>
+                        <select name="carType" class="form-input">
+                            <option value="">Select Car Type</option>
+                            <option value="sedan">🚗 Sedan</option>
+                            <option value="suv">🚙 SUV</option>
+                            <option value="hatchback">🚐 Hatchback</option>
+                            <option value="luxury">🏎️ Luxury</option>
+                            <option value="convertible">🚘 Convertible</option>
+                            <option value="minivan">🚐 Minivan</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn">
+                    Register as <span id="userTypeText">Customer</span>
+                </button>
+            </form>
+
+            <div class="link-text">
+                Already have an account? <a href="#" onclick="showLoginPage()">Login here</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Page -->
+    <div id="loginPage" class="auth-container">
+        <div class="auth-card">
+            <h2 class="auth-title">Welcome Back</h2>
+            
+            <div class="user-type-selector">
+                <button class="user-type-btn active" onclick="setLoginUserType('customer', this)">
+                    Customer
+                </button>
+                <button class="user-type-btn" onclick="setLoginUserType('driver', this)">
+                    Driver
+                </button>
+            </div>
+
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-input" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" class="form-input" required>
+                </div>
+
+                <button type="submit" class="submit-btn">
+                    Login as <span id="loginUserTypeText">Customer</span>
+                </button>
+            </form>
+
+            <div class="link-text">
+                Don't have an account? <a href="#" onclick="showRegistrationPage()">Register here</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUserType = 'customer';
+        let currentLoginUserType = 'customer';
+
+        function showRegistrationPage() {
+            document.getElementById('welcomePage').style.display = 'none';
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('registrationPage').style.display = 'flex';
+        }
+
+        function showLoginPage() {
+            document.getElementById('welcomePage').style.display = 'none';
+            document.getElementById('registrationPage').style.display = 'none';
+            document.getElementById('loginPage').style.display = 'flex';
+        }
+
+        function showWelcomePage() {
+            document.getElementById('registrationPage').style.display = 'none';
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('welcomePage').style.display = 'block';
+        }
+
+        function setUserType(type, button) {
+            currentUserType = type;
+            document.getElementById('userTypeText').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+            
+            document.querySelectorAll('#registrationPage .user-type-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            button.classList.add('active');
+
+            const driverFields = document.getElementById('driverFields');
+            if (type === 'driver') {
+                driverFields.classList.remove('hidden');
+            } else {
+                driverFields.classList.add('hidden');
+            }
+        }
+
+        function setLoginUserType(type, button) {
+            currentLoginUserType = type;
+            document.getElementById('loginUserTypeText').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+            
+            document.querySelectorAll('#loginPage .user-type-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            button.classList.add('active');
+        }
+
+        function handleRegistration(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const data = Object.fromEntries(formData);
+            data.userType = currentUserType;
+
+            console.log('Registration data:', data);
+            alert('Registration successful! (Data logged to console)');
+            showLoginPage();
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const data = Object.fromEntries(formData);
+            data.userType = currentLoginUserType;
+
+            console.log('Login data:', data);
+            alert(`Login successful! Welcome ${currentLoginUserType}`);
+            
+            if (currentLoginUserType === 'customer') {
+                alert('Redirecting to Customer Dashboard...');
+            } else {
+                alert('Redirecting to Driver Dashboard...');
+            }
+        }
+    </script>
+</body>
+</html>
