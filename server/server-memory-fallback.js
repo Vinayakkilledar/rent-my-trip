@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -11,41 +10,35 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/rent-my-trip', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('✅ MongoDB connected successfully');
-  console.log('📊 Database: rent-my-trip');
-})
-.catch((error) => {
-  console.error('❌ MongoDB connection error:', error);
-  console.log('🔧 Make sure MongoDB is running on localhost:27017');
-});
+// In-memory database for testing (fallback when MongoDB is not available)
+let users = [];
+let nextUserId = 1;
 
-const userSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  phone: { type: String, required: true },
-  userType: { type: String, enum: ['customer', 'driver'], required: true },
-  licenseNumber: { type: String },
-  driveType: { type: String },
-  carName: { type: String },
-  carModel: { type: String },
-  numberOfSeats: { type: String },
-  carType: { type: String },
-  createdAt: { type: Date, default: Date.now }
-});
+console.log('🔧 Using in-memory database for testing');
+console.log('⚠️  This is a temporary solution - install MongoDB for production');
 
-const User = mongoose.model('User', userSchema);
+// Helper functions
+const findUser = (email, userType) => {
+  return users.find(user => user.email === email && user.userType === userType);
+};
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const findUserByEmail = (email) => {
+  return users.find(user => user.email === email);
+};
+
+const saveUser = async (userData) => {
+  const newUser = {
+    _id: nextUserId++,
+    ...userData,
+    createdAt: new Date()
+  };
+  users.push(newUser);
+  return newUser;
+};
 
 app.post('/api/register', async (req, res) => {
   try {
-    console.log('📝 Registration request received:', {
+    console.log('📝 Registration request received (memory fallback):', {
       name: req.body.name,
       email: req.body.email,
       phone: req.body.phone,
@@ -62,7 +55,7 @@ app.post('/api/register', async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = findUserByEmail(email);
     if (existingUser) {
       console.log('⚠️ User already exists:', email);
       return res.status(400).json({ success: false, message: 'User already exists' });
@@ -71,7 +64,7 @@ app.post('/api/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log('🔐 Password hashed successfully');
 
-    const newUser = new User({
+    const newUser = await saveUser({
       name,
       email,
       password: hashedPassword,
@@ -85,10 +78,9 @@ app.post('/api/register', async (req, res) => {
       carType: userType === 'driver' ? carType : undefined
     });
 
-    await newUser.save();
-    console.log('✅ User registered successfully:', { name, email, userType });
+    console.log('✅ User registered successfully (memory fallback):', { name, email, userType });
 
-    res.status(201).json({ success: true, message: 'User registered successfully' });
+    res.status(201).json({ success: true, message: 'User registered successfully (stored in memory)' });
   } catch (error) {
     console.error('❌ Registration error:', error);
     res.status(500).json({ success: false, message: 'Server error during registration' });
@@ -97,7 +89,7 @@ app.post('/api/register', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   try {
-    console.log('🔑 Login request received:', {
+    console.log('🔑 Login request received (memory fallback):', {
       email: req.body.email,
       userType: req.body.userType
     });
@@ -112,7 +104,7 @@ app.post('/api/login', async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email, userType });
+    const user = findUser(email, userType);
     if (!user) {
       console.log('⚠️ User not found:', { email, userType });
       return res.status(400).json({ success: false, message: 'Invalid credentials' });
@@ -126,11 +118,11 @@ app.post('/api/login', async (req, res) => {
 
     const token = jwt.sign(
       { userId: user._id, email: user.email, userType: user.userType },
-      JWT_SECRET,
+      process.env.JWT_SECRET || 'fallback-secret-key',
       { expiresIn: '24h' }
     );
 
-    console.log('✅ Login successful:', { name: user.name, email, userType });
+    console.log('✅ Login successful (memory fallback):', { name: user.name, email, userType });
 
     res.json({ 
       success: true, 
@@ -150,8 +142,9 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try {
-    const users = await User.find().select('-password');
-    res.json({ success: true, users });
+    // Return users without passwords
+    const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+    res.json({ success: true, users: usersWithoutPasswords });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -160,27 +153,18 @@ app.get('/api/users', async (req, res) => {
 
 app.get('/api/status', async (req, res) => {
   try {
-    const dbState = mongoose.connection.readyState;
-    const dbStates = {
-      0: 'disconnected',
-      1: 'connected',
-      2: 'connecting',
-      3: 'disconnecting'
-    };
-    
-    const userCount = await User.countDocuments();
-    
     res.json({
       success: true,
       database: {
-        state: dbStates[dbState],
-        connected: dbState === 1,
-        name: mongoose.connection.name
+        state: 'memory-fallback',
+        connected: true,
+        name: 'in-memory',
+        note: 'Using in-memory storage - install MongoDB for persistence'
       },
       users: {
-        total: userCount,
-        customers: await User.countDocuments({ userType: 'customer' }),
-        drivers: await User.countDocuments({ userType: 'driver' })
+        total: users.length,
+        customers: users.filter(u => u.userType === 'customer').length,
+        drivers: users.filter(u => u.userType === 'driver').length
       },
       server: {
         status: 'running',
@@ -195,11 +179,12 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`🚀 Server is running on port ${PORT} (memory fallback mode)`);
   console.log(`📊 API Endpoints:`);
   console.log(`   POST /api/register - User registration`);
   console.log(`   POST /api/login - User login`);
   console.log(`   GET  /api/users - Get all users`);
   console.log(`   GET  /api/status - Database status`);
   console.log(`🔗 Frontend should connect to: http://localhost:${PORT}`);
+  console.log(`⚠️  Install MongoDB for data persistence!`);
 });
