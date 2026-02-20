@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import './TripPlanner.css';
 
 const TripPlanner = () => {
@@ -208,6 +208,9 @@ const TripPlanner = () => {
           {userType === 'customer' ? '🗺️ Plan Your Trip' : '🚗 Set Your Trip Route'}
         </h2>
         <div className="header-actions">
+          <Link to="/trip-assistance" className="trip-assistance-link">
+            🗺️ Trip Assistance
+          </Link>
           <p className="user-type-indicator">
             Logged in as: <strong>{userType === 'customer' ? 'Customer' : 'Driver'}</strong>
           </p>

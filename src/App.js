@@ -6,6 +6,7 @@ import LoginPage from './components/LoginPage';
 import AdminLoginPage from './components/AdminLoginPage';
 import AdminDashboard from './components/AdminDashboard';
 import TripPlanner from './components/TripPlanner';
+import TripAssistanceDashboard from './components/TripAssistanceDashboard';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="/admin-login" element={<AdminLoginPage />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/trip-planner" element={<TripPlanner />} />
+          <Route path="/trip-assistance" element={<TripAssistanceDashboard />} />
           
           {/* Placeholder routes for dashboards */}
           <Route path="/customer-dashboard" element={

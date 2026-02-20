@@ -4,20 +4,19 @@ export const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
-// Password validation (min 6 characters, at least one letter and one number)
+// Password validation (min 1 characters)
 export const isValidPassword = (password) => {
-  return password.length >= 6 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
+  return password && password.length >= 1;
 };
 
-// Phone validation (10 digits)
+// Phone validation (not empty)
 export const isValidPhone = (phone) => {
-  const phoneRegex = /^[0-9]{10}$/;
-  return phoneRegex.test(phone.replace(/[^\d]/g, ''));
+  return phone && phone.trim().length > 0;
 };
 
 // License number validation (basic)
 export const isValidLicense = (license) => {
-  return license.length >= 5;
+  return license && license.trim().length > 0;
 };
 
 // Validate registration form
@@ -33,20 +32,20 @@ export const validateRegistrationForm = (formData, userType) => {
   }
 
   if (!isValidPassword(formData.password)) {
-    errors.password = 'Password must be at least 6 characters with letters and numbers';
+    errors.password = 'Password is required';
   }
 
   if (!isValidPhone(formData.phone)) {
-    errors.phone = 'Phone must be 10 digits';
+    errors.phone = 'Phone number is required';
   }
 
   if (userType === 'driver') {
     if (!isValidLicense(formData.licenseNumber)) {
-      errors.licenseNumber = 'License number must be at least 5 characters';
+      errors.licenseNumber = 'License number is required';
     }
 
-    if (!formData.vehicleType) {
-      errors.vehicleType = 'Please select a vehicle type';
+    if (!formData.carType) {
+      errors.carType = 'Please select a car type';
     }
   }
 
@@ -61,8 +60,8 @@ export const validateLoginForm = (formData) => {
     errors.email = 'Invalid email format';
   }
 
-  if (!formData.password || formData.password.length < 6) {
-    errors.password = 'Password must be at least 6 characters';
+  if (!formData.password) {
+    errors.password = 'Password is required';
   }
 
   return errors;

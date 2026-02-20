@@ -24,6 +24,22 @@
   flex-wrap: wrap;
 }
 
+.trip-assistance-link {
+  color: rgba(255, 255, 255, 0.95);
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.trip-assistance-link:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
 .user-type-indicator {
   font-size: 1.1rem;
   opacity: 0.9;

@@ -41,6 +41,15 @@ const WelcomeDashboard = () => {
 
   return (
     <div className="welcome-dashboard">
+      {/* YouTube Background */}
+      <iframe
+        className="youtube-background"
+        src="https://www.youtube.com/embed/Auuf4lTvtSw?autoplay=1&mute=1&controls=0&loop=1&playlist=Auuf4lTvtSw&showinfo=0&rel=0&modestbranding=1"
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      ></iframe>
+
       {/* 3D Globe Scene */}
       <div className={`scene globe-scene ${currentScene === 'globe' || currentScene === 'driving' ? 'active' : ''}`}>
         <div className="space-background">
@@ -48,7 +57,7 @@ const WelcomeDashboard = () => {
           <div className="stars stars2"></div>
           <div className="stars stars3"></div>
         </div>
-        
+
         <div className="globe-container" ref={globeRef}>
           <div className="globe">
             <div className="globe-surface">
@@ -58,7 +67,7 @@ const WelcomeDashboard = () => {
               <div className="glowing-road"></div>
             </div>
           </div>
-          
+
           <div className={`car-driving ${currentScene === 'driving' ? 'active' : ''}`} ref={carRef}>
             <div className="car">
               <div className="car-body"></div>
@@ -100,19 +109,19 @@ const WelcomeDashboard = () => {
             <h4>Easy Vehicle Rentals</h4>
             <p>Choose from our wide range of vehicles</p>
           </div>
-          
+
           <div className={`feature ${showFeatures ? 'show' : ''}`} style={{ animationDelay: '1s' }}>
             <div className="feature-icon">🗺️</div>
             <h4>Customized Travel Packages</h4>
             <p>Tailored packages for your perfect trip</p>
           </div>
-          
+
           <div className={`feature ${showFeatures ? 'show' : ''}`} style={{ animationDelay: '1.5s' }}>
             <div className="feature-icon">💰</div>
             <h4>Affordable Pricing</h4>
             <p>Best rates guaranteed for every budget</p>
           </div>
-          
+
           <div className={`feature ${showFeatures ? 'show' : ''}`} style={{ animationDelay: '2s' }}>
             <div className="feature-icon">📱</div>
             <h4>One-Click Booking</h4>
@@ -133,7 +142,7 @@ const WelcomeDashboard = () => {
         <div className="final-car">
           <div className="car-silhouette"></div>
         </div>
-        
+
         <div className="final-logo">
           <h1 className="logo-text">Rent My Trip</h1>
           <p className="logo-subtitle">Start Your Adventure Today</p>

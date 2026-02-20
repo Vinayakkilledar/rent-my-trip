@@ -15,14 +15,14 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/rent-my-t
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => {
-  console.log('✅ MongoDB connected successfully');
-  console.log('📊 Database: rent-my-trip');
-})
-.catch((error) => {
-  console.error('❌ MongoDB connection error:', error);
-  console.log('🔧 Make sure MongoDB is running on localhost:27017');
-});
+  .then(() => {
+    console.log('✅ MongoDB connected successfully');
+    console.log('📊 Database: rent-my-trip');
+  })
+  .catch((error) => {
+    console.error('❌ MongoDB connection error:', error);
+    console.log('🔧 Make sure MongoDB is running on localhost:27017');
+  });
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -36,14 +36,64 @@ const userSchema = new mongoose.Schema({
   carModel: { type: String },
   numberOfSeats: { type: String },
   carType: { type: String },
+  location: { type: String },
+  carPhoto: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 
 const User = mongoose.model('User', userSchema);
 
+// Lodge booking schema
+const lodgeBookingSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
+  placeId: { type: String, required: true },
+  lodgeName: { type: String, required: true },
+  address: { type: String },
+  lat: { type: Number },
+  lng: { type: Number },
+  checkIn: { type: String },
+  checkOut: { type: String },
+  roomNumber: { type: String },
+  bookingId: { type: String, unique: true },
+  advanceAmount: { type: Number },
+  paymentMethod: { type: String },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const LodgeBooking = mongoose.model('LodgeBooking', lodgeBookingSchema);
+
+const lodgeBookingSchema = new mongoose.Schema({
+  placeId: { type: String, required: true },
+  lodgeName: { type: String, required: true },
+  address: { type: String, default: '' },
+  lat: { type: Number, required: true },
+  lng: { type: Number, required: true },
+  checkIn: { type: String, required: true },
+  checkOut: { type: String, required: true },
+  roomNumber: { type: String, required: true },
+  bookingId: { type: String, required: true, unique: true },
+  advanceAmount: { type: Number, required: true },
+  paymentMethod: { type: String, required: true },
+  userId: { type: String },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const LodgeBooking = mongoose.model('LodgeBooking', lodgeBookingSchema);
+
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-app.post('/api/register', async (req, res) => {
+// Helper: ensure MongoDB is connected before handling write/read
+const requireDb = (req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      success: false,
+      message: 'Database not connected. Please start MongoDB (see MONGODB_SETUP.md) and ensure the backend is running.'
+    });
+  }
+  next();
+};
+
+app.post('/api/register', requireDb, async (req, res) => {
   try {
     console.log('📝 Registration request received:', {
       name: req.body.name,
@@ -52,13 +102,13 @@ app.post('/api/register', async (req, res) => {
       userType: req.body.userType
     });
 
-    const { name, email, password, phone, userType, licenseNumber, driveType, carName, carModel, numberOfSeats, carType } = req.body;
+    const { name, email, password, phone, userType, licenseNumber, driveType, carName, carModel, numberOfSeats, carType, location, carPhoto } = req.body;
 
     // Validation
     if (!name || !email || !password || !phone || !userType) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'All required fields must be provided' 
+      return res.status(400).json({
+        success: false,
+        message: 'All required fields must be provided'
       });
     }
 
@@ -82,7 +132,9 @@ app.post('/api/register', async (req, res) => {
       carName: userType === 'driver' ? carName : undefined,
       carModel: userType === 'driver' ? carModel : undefined,
       numberOfSeats: userType === 'driver' ? numberOfSeats : undefined,
-      carType: userType === 'driver' ? carType : undefined
+      carType: userType === 'driver' ? carType : undefined,
+      location: userType === 'driver' ? location : undefined,
+      carPhoto: userType === 'driver' ? carPhoto : undefined
     });
 
     await newUser.save();
@@ -91,11 +143,33 @@ app.post('/api/register', async (req, res) => {
     res.status(201).json({ success: true, message: 'User registered successfully' });
   } catch (error) {
     console.error('❌ Registration error:', error);
-    res.status(500).json({ success: false, message: 'Server error during registration' });
+
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      return res.status(400).json({
+        success: false,
+        message: `An account with that ${field} already exists.`
+      });
+    }
+
+    // Handle MongoDB validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(val => val.message);
+      return res.status(400).json({
+        success: false,
+        message: messages.join(', ')
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error during registration. Please check database connection.'
+    });
   }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', requireDb, async (req, res) => {
   try {
     console.log('🔑 Login request received:', {
       email: req.body.email,
@@ -106,9 +180,9 @@ app.post('/api/login', async (req, res) => {
 
     // Validation
     if (!email || !password || !userType) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Email, password, and user type are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Email, password, and user type are required'
       });
     }
 
@@ -132,15 +206,15 @@ app.post('/api/login', async (req, res) => {
 
     console.log('✅ Login successful:', { name: user.name, email, userType });
 
-    res.json({ 
-      success: true, 
-      token, 
-      user: { 
-        id: user._id, 
-        name: user.name, 
-        email: user.email, 
-        userType: user.userType 
-      } 
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        userType: user.userType
+      }
     });
   } catch (error) {
     console.error('❌ Login error:', error);
@@ -148,12 +222,78 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', requireDb, async (req, res) => {
   try {
     const users = await User.find().select('-password');
     res.json({ success: true, users });
   } catch (error) {
     console.error('Error fetching users:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.post('/api/lodge-bookings', requireDb, async (req, res) => {
+  try {
+    const { placeId, lodgeName, address, lat, lng, checkIn, checkOut, roomNumber, bookingId, advanceAmount, paymentMethod } = req.body;
+
+    if (!placeId || !lodgeName || !lat || !lng || !checkIn || !checkOut || !roomNumber || !bookingId || !advanceAmount || !paymentMethod) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required booking fields'
+      });
+    }
+
+    const booking = new LodgeBooking({
+      placeId,
+      lodgeName,
+      address: address || '',
+      lat,
+      lng,
+      checkIn,
+      checkOut,
+      roomNumber,
+      bookingId,
+      advanceAmount,
+      paymentMethod,
+      userId: req.body.userId || null
+    });
+
+    await booking.save();
+    console.log('✅ Lodge booking saved:', bookingId);
+
+    res.status(201).json({
+      success: true,
+      message: 'Lodge booking confirmed',
+      booking: {
+        _id: booking._id,
+        placeId: booking.placeId,
+        lodgeName: booking.lodgeName,
+        address: booking.address,
+        lat: booking.lat,
+        lng: booking.lng,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        roomNumber: booking.roomNumber,
+        bookingId: booking.bookingId,
+        advanceAmount: booking.advanceAmount,
+        paymentMethod: booking.paymentMethod
+      }
+    });
+  } catch (error) {
+    console.error('❌ Lodge booking error:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({ success: false, message: 'Booking ID already exists' });
+    }
+    res.status(500).json({ success: false, message: 'Server error during lodge booking' });
+  }
+});
+
+app.get('/api/lodge-bookings', requireDb, async (req, res) => {
+  try {
+    const bookings = await LodgeBooking.find().sort({ createdAt: -1 });
+    res.json({ success: true, bookings });
+  } catch (error) {
+    console.error('Error fetching lodge bookings:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -167,9 +307,9 @@ app.get('/api/status', async (req, res) => {
       2: 'connecting',
       3: 'disconnecting'
     };
-    
+
     const userCount = await User.countDocuments();
-    
+
     res.json({
       success: true,
       database: {
@@ -191,6 +331,38 @@ app.get('/api/status', async (req, res) => {
   } catch (error) {
     console.error('❌ Status check error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Lodge bookings endpoints
+app.post('/api/lodge-bookings', requireDb, async (req, res) => {
+  try {
+    const { userId, placeId, lodgeName, address, lat, lng, checkIn, checkOut, roomNumber, bookingId, advanceAmount, paymentMethod } = req.body;
+    if (!placeId || !lodgeName || !bookingId) {
+      return res.status(400).json({ success: false, message: 'Missing required booking fields' });
+    }
+
+    const booking = new LodgeBooking({ userId, placeId, lodgeName, address, lat, lng, checkIn, checkOut, roomNumber, bookingId, advanceAmount, paymentMethod });
+    await booking.save();
+    res.status(201).json({ success: true, booking });
+  } catch (err) {
+    console.error('Error saving lodge booking:', err);
+    if (err.code === 11000) {
+      return res.status(400).json({ success: false, message: 'Booking ID already exists' });
+    }
+    res.status(500).json({ success: false, message: 'Could not save booking' });
+  }
+});
+
+app.get('/api/lodge-bookings', requireDb, async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.userId) filter.userId = req.query.userId;
+    const bookings = await LodgeBooking.find(filter).sort({ createdAt: -1 }).limit(200);
+    res.json({ success: true, bookings });
+  } catch (err) {
+    console.error('Error fetching lodge bookings:', err);
+    res.status(500).json({ success: false, message: 'Could not fetch bookings' });
   }
 });
 

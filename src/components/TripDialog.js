@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './TripDialog.css';
 import DriverNotifications from './DriverNotifications';
+import BookingSystem from './BookingSystem';
 
-const TripDialog = ({ isOpen, onClose, userType, onTripSubmit }) => {
+const TripDialog = ({ isOpen, onClose, userType, onTripSubmit, onTripAssistance }) => {
   const [tripData, setTripData] = useState({
     from: '',
     to: '',
@@ -17,6 +18,7 @@ const TripDialog = ({ isOpen, onClose, userType, onTripSubmit }) => {
   const [distance, setDistance] = useState(null);
   const [estimatedTime, setEstimatedTime] = useState(null);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showBooking, setShowBooking] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -171,8 +173,20 @@ const TripDialog = ({ isOpen, onClose, userType, onTripSubmit }) => {
     onClose();
   };
 
+  const handleBookNow = () => {
+    if (!tripData.from || !tripData.to) {
+      alert('Please enter both "From" and "To" addresses');
+      return;
+    }
+    setShowBooking(true);
+  };
+
   const handleNotificationsClose = () => {
     setShowNotifications(false);
+  };
+
+  const handleBookingClose = () => {
+    setShowBooking(false);
   };
 
   if (!isOpen) return null;
@@ -286,6 +300,12 @@ const TripDialog = ({ isOpen, onClose, userType, onTripSubmit }) => {
                     ✅ Start Trip
                   </button>
                 )}
+                
+                {route && (
+                  <button onClick={handleBookNow} className="btn btn-book">
+                    🎫 Book Now
+                  </button>
+                )}
               </div>
 
               {route && (
@@ -310,22 +330,28 @@ const TripDialog = ({ isOpen, onClose, userType, onTripSubmit }) => {
               )}
             </div>
 
-            {showMap && (
-              <div className="map-section">
-                <div id="trip-map" className="map-container"></div>
-              </div>
-            )}
+        {showMap && (
+          <div className="map-section">
+            <div id="trip-map" className="map-container"></div>
           </div>
-        </div>
+        )}
       </div>
-      
-      <DriverNotifications
-        isOpen={showNotifications}
-        onClose={handleNotificationsClose}
-        userType={userType}
-      />
-    </>
-  );
-};
+    </div>
+  </div>
+  
+  <DriverNotifications
+    isOpen={showNotifications}
+    onClose={handleNotificationsClose}
+    userType={userType}
+  />
+  
+  <BookingSystem
+    isOpen={showBooking}
+    onClose={handleBookingClose}
+    userType={userType}
+    tripData={tripData}
+    onTripAssistance={onTripAssistance}
+  />
+);
 
 export default TripDialog;

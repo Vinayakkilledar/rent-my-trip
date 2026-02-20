@@ -28,12 +28,14 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            min-width: 100%;
-            min-height: 100%;
-            width: auto;
-            height: auto;
+            width: 100vw;
+            height: 56.25vw;
+            /* 16:9 Aspect Ratio */
+            min-height: 100vh;
+            min-width: 177.77vh;
             transform: translate(-50%, -50%);
             z-index: -1;
+            pointer-events: none;
         }
 
         .video-overlay {
@@ -95,6 +97,193 @@
                 transform: translateY(0);
             }
         }
+
+            /* ========== Accommodations / Map / Lodges Booking ========== */
+            function showAccommodations() {
+                hideAllPages();
+                // create page if not exists
+                const existing = document.getElementById('accommodationsPage');
+                if (!existing) {
+                    const container = document.createElement('div');
+                    container.id = 'accommodationsPage';
+                    container.className = 'auth-container';
+                    container.style.display = 'flex';
+                    container.style.flexDirection = 'column';
+                    container.style.justifyContent = 'flex-start';
+                    container.style.paddingTop = '4rem';
+                    container.innerHTML = `
+                        <div style="width:100%; max-width:1100px;">
+                            <button onclick="showDashboardPage()" style="background:none;border:none;color:#667eea;cursor:pointer;margin-bottom:1rem;font-size:1rem;font-weight:bold;">← Back</button>
+                            <h2 class="auth-title">Find Nearby Lodges & Services</h2>
+                            <p style="color:white; margin-bottom:1rem;">Map shows nearby hotels (🏨), lodges (🏠), petrol pumps (⛽) and attractions. Click a lodge to advance-book a room.</p>
+                            <div id="mapRoot" style="width:100%; height:420px; border-radius:10px; overflow:hidden; margin-bottom:12px; background:#e9ecef;"></div>
+                            <div id="accomList" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px;"></div>
+                            <div id="nearbyBookedList" style="margin-top:12px; color:white;"></div>
+                        </div>
+                    `;
+                    document.body.appendChild(container);
+                }
+                document.getElementById('accommodationsPage').style.display = 'flex';
+                // load maps and then search nearby
+                if (!window._accomMapsLoaded) loadAccommodationsMapScript();
+                else if (window._accomMap) fetchNearbyPlaces(window._accomMap.getCenter());
+            }
+
+            function loadAccommodationsMapScript() {
+                window._accomMapsLoaded = true;
+                // create placeholder map root center; will re-center on geolocation
+                const mapRoot = document.getElementById('mapRoot');
+                mapRoot.innerHTML = '<div style="padding:12px;color:#666;">Loading map... ensure you replace YOUR_API_KEY in the code with your real Google Maps API key (Places API enabled).</div>';
+
+                // inject Google Maps JS - user must replace YOUR_API_KEY
+                const script = document.createElement('script');
+                script.src = 'https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places&callback=initNearbyMap';
+                script.async = true;
+                script.defer = true;
+                document.head.appendChild(script);
+                // initNearbyMap will be called by callback
+            }
+
+            // callback for Google Maps script
+            function initNearbyMap() {
+                // Create map centered at user's location if available, else fallback
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    const center = { lat, lng };
+                    window._accomMap = new google.maps.Map(document.getElementById('mapRoot'), { center, zoom: 14 });
+                    // user location marker
+                    new google.maps.Marker({ position: center, map: window._accomMap, title: 'You are here', label: { text: '👤', fontSize: '14px' } });
+                    // re-add any previously booked lodges
+                    (JSON.parse(localStorage.getItem('bookedLodges') || '[]')).forEach(b => addBookedMarker(b));
+                    fetchNearbyPlaces(center);
+                    // check proximity periodically
+                    setInterval(checkProximityForBookedLodges, 8000);
+                }, err => {
+                    const center = { lat: 12.9716, lng: 77.5946 };
+                    window._accomMap = new google.maps.Map(document.getElementById('mapRoot'), { center, zoom: 13 });
+                    (JSON.parse(localStorage.getItem('bookedLodges') || '[]')).forEach(b => addBookedMarker(b));
+                    fetchNearbyPlaces(center);
+                    setInterval(checkProximityForBookedLodges, 8000);
+                }, { timeout: 6000 });
+            }
+
+            function fetchNearbyPlaces(center) {
+                if (!window._accomMap) return;
+                const service = new google.maps.places.PlacesService(window._accomMap);
+                const types = [ {type:'lodging', label:'🏨'}, {type:'tourist_attraction', label:'📍'}, {type:'gas_station', label:'⛽'} ];
+                // clear previous markers
+                window._accomMarkers = window._accomMarkers || [];
+                window._accomMarkers.forEach(m => m.setMap(null));
+                window._accomMarkers = [];
+                const listEl = document.getElementById('accomList');
+                listEl.innerHTML = '<div style="grid-column:1/-1;color:#fff;padding:6px;">Searching nearby places…</div>';
+
+                const allPlaces = [];
+                let completed = 0;
+                types.forEach(t => {
+                    service.nearbySearch({ location: center, radius: 2000, type: t.type }, (results, status) => {
+                        completed++;
+                        if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length) {
+                            results.forEach(p => { p._typeLabel = t.label; allPlaces.push(p); });
+                        }
+                        if (completed === types.length) renderPlacesList(allPlaces);
+                    });
+                });
+            }
+
+            function renderPlacesList(places) {
+                const listEl = document.getElementById('accomList');
+                listEl.innerHTML = '';
+                if (!places.length) { listEl.innerHTML = '<div style="grid-column:1/-1;color:#fff;">No nearby places found.</div>'; return; }
+                // Deduplicate by place_id
+                const mapById = {};
+                places.forEach(p => { if (!mapById[p.place_id]) mapById[p.place_id] = p; });
+                const unique = Object.values(mapById).slice(0, 30);
+
+                unique.forEach((p, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'service-card';
+                    const icon = p._typeLabel || '📍';
+                    const name = p.name || 'Unknown';
+                    const address = p.vicinity || p.formatted_address || '';
+                    const lat = p.geometry.location.lat();
+                    const lng = p.geometry.location.lng();
+
+                    card.innerHTML = `
+                        <div style="font-size:2rem;">${icon}</div>
+                        <h3 class="service-title">${name}</h3>
+                        <p class="service-desc">${address}</p>
+                        <p style="color:#28a745; font-weight:bold;">${(p.rating?('★ '+p.rating):'')}</p>
+                        <button class="service-btn" onclick="openLodgeBooking(${idx})">Advance Book</button>
+                    `;
+                    listEl.appendChild(card);
+
+                    // create marker
+                    const marker = new google.maps.Marker({ position: { lat, lng }, map: window._accomMap, title: name, label: { text: icon, color:'#000', fontSize:'18px' } });
+                    marker._place = p;
+                    window._accomMarkers.push(marker);
+                    marker.addListener('click', () => {
+                        window._accomMap.panTo(marker.getPosition());
+                        openLodgeBooking(unique.indexOf(p));
+                    });
+                });
+
+                // store latest places list for booking reference
+                window._accomPlaces = unique;
+            }
+
+            function openLodgeBooking(index) {
+                const places = window._accomPlaces || [];
+                const p = places[index];
+                if (!p) { alert('Place not available.'); return; }
+                // reuse booking overlay if present else create a simple prompt flow
+                const name = p.name || 'Lodge';
+                const advance = Math.max(300, Math.round((p.price_level || 1) * 500));
+                const proceed = confirm('Advance booking for "' + name + '" requires an advance payment of ₹' + advance + '. Proceed to pay advance?');
+                if (!proceed) return;
+                // Simulate payment — in real app integrate gateway
+                // After payment, generate room number and persist booking
+                const room = 'R' + (Math.floor(Math.random() * 900) + 100);
+                const booked = { id: p.place_id, name: name, lat: p.geometry.location.lat(), lng: p.geometry.location.lng(), advancePaid: true, roomNumber: room, timestamp: Date.now() };
+                const bookings = JSON.parse(localStorage.getItem('bookedLodges') || '[]');
+                bookings.push(booked);
+                localStorage.setItem('bookedLodges', JSON.stringify(bookings));
+                alert('Advance paid. Your room number: ' + room + '\nWe saved your booking and will display it on the map.');
+                // visually pin the booked lodge
+                addBookedMarker(booked);
+            }
+
+            function addBookedMarker(booked) {
+                if (!window._accomMap) return;
+                const marker = new google.maps.Marker({ position: { lat: booked.lat, lng: booked.lng }, map: window._accomMap, title: booked.name + ' (booked)', label: { text: '🔑', fontSize: '16px' } });
+                marker._booked = booked;
+                window._accomMarkers = window._accomMarkers || [];
+                window._accomMarkers.push(marker);
+            }
+
+            function checkProximityForBookedLodges() {
+                const bookings = JSON.parse(localStorage.getItem('bookedLodges') || '[]');
+                if (!bookings.length) return;
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const ux = pos.coords.latitude; const uy = pos.coords.longitude;
+                    const nearby = bookings.filter(b => distanceMeters(ux, uy, b.lat, b.lng) <= 200);
+                    const el = document.getElementById('nearbyBookedList');
+                    if (!el) return;
+                    if (nearby.length === 0) { el.innerHTML = '<p style="color:#fff;">No booked lodges within 200 m.</p>'; return; }
+                    el.innerHTML = '<h3 style="color:#fff; margin-bottom:6px;">Nearby Booked Lodges (within 200 m)</h3>' + nearby.map(b => `<div style="background:#fff;color:#222;padding:8px;border-radius:8px;margin-bottom:6px;"><strong>${b.name}</strong><br/>Room: ${b.roomNumber}</div>`).join('');
+                }, err => { /* ignore */ }, { maximumAge: 8000 });
+            }
+
+            function distanceMeters(lat1, lon1, lat2, lon2) {
+                function toRad(v){return v*Math.PI/180;}
+                const R = 6371000;
+                const dLat = toRad(lat2-lat1);
+                const dLon = toRad(lon2-lon1);
+                const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(toRad(lat1))*Math.cos(toRad(lat2)) * Math.sin(dLon/2)*Math.sin(dLon/2);
+                const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R*c;
+            }
 
         .auth-container {
             min-height: 100vh;
@@ -271,17 +460,165 @@
         .service-btn:hover {
             transform: translateY(-2px);
         }
+
+        .overlay-bg {
+            z-index: 3000;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .overlay-bg.show { display: flex; }
+        .overlay-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 100%;
+            max-width: 420px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .payment-radio-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .payment-radio-label:hover { border-color: #667eea; background: #f8f9fa; }
+        .payment-radio-label input[type="radio"] { accent-color: #667eea; }
+        .payment-method-content { text-align: left; }
+        .qr-placeholder {
+            width: 180px;
+            height: 180px;
+            margin: 15px auto;
+            background: #f5f5f5;
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 10px;
+        }
+        .detail-block { background: #f8f9fa; padding: 12px; border-radius: 8px; margin: 10px 0; text-align: left; }
+        .detail-block strong { display: inline-block; min-width: 100px; }
+        #confirmationOverlay .overlay-card {
+            max-width: 980px;
+        }
+        .confirmation-map-section {
+            margin-top: 1rem;
+            border-top: 1px solid #e9ecef;
+            padding-top: 1rem;
+            text-align: left;
+        }
+        .map-note {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.75rem;
+        }
+        .nearby-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 0.75rem;
+        }
+        .nearby-pill {
+            background: #f1f3f5;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+        }
+        .map-wrap {
+            width: 100%;
+            height: 340px;
+            border: 1px solid #e1e1e1;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+            background: #f8f9fa;
+        }
+        #postBookingMap {
+            width: 100%;
+            height: 100%;
+        }
+        .nearby-list-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+        }
+        .nearby-item {
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 10px;
+            background: #fff;
+        }
+        .nearby-item.booked {
+            border-color: #28a745;
+            background: #f3fff6;
+        }
+        .nearby-item h4 {
+            margin: 0 0 6px;
+            font-size: 0.96rem;
+            color: #333;
+        }
+        .nearby-meta {
+            margin: 0 0 4px;
+            color: #555;
+            font-size: 0.84rem;
+            line-height: 1.4;
+        }
+        .nearby-empty {
+            grid-column: 1 / -1;
+            border: 1px dashed #ccc;
+            border-radius: 10px;
+            padding: 12px;
+            color: #666;
+            background: #fafafa;
+        }
+        .mini-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 7px 10px;
+            cursor: pointer;
+            color: #fff;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            margin-top: 8px;
+            width: 100%;
+        }
+        .mini-btn[disabled] {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+        @media (max-width: 768px) {
+            .map-wrap {
+                height: 260px;
+            }
+        }
     </style>
 </head>
 
 <body>
     <!-- Welcome Page -->
     <div id="welcomePage" class="video-container">
-        <video class="video-background" autoplay loop muted playsInline>
-            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
-                type="video/mp4">
-            Your browser does not support the video tag.
-        </video>
+        <iframe class="video-background"
+            src="https://www.youtube.com/embed/Auuf4lTvtSw?autoplay=1&mute=1&controls=0&loop=1&playlist=Auuf4lTvtSw&showinfo=0&rel=0&modestbranding=1"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen>
+        </iframe>
 
         <div class="video-overlay">
             <h1 class="welcome-title">Rent My Trip</h1>
@@ -379,6 +716,16 @@
                             <option value="minivan">🚐 Minivan</option>
                         </select>
                     </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Driver/Car Location</label>
+                        <input type="text" name="location" class="form-input" placeholder="e.g., MG Road, Bangalore">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Car Photo URL</label>
+                        <input type="url" name="carPhoto" class="form-input" placeholder="Enter link to car image">
+                    </div>
                 </div>
 
                 <button type="submit" class="submit-btn">
@@ -440,26 +787,272 @@
         </div>
 
         <div class="services-grid">
-            <div class="service-card" onclick="alert('Proceeding to Car Rent...')">
+            <div class="service-card" onclick="showCarRentOptions()">
                 <div class="service-icon">🚗</div>
                 <h3 class="service-title">Car Rent</h3>
                 <p class="service-desc">Self-drive or with a driver. Premium cars for your trips.</p>
                 <button class="service-btn">Book a Car</button>
             </div>
 
-            <div class="service-card" onclick="alert('Proceeding to Bus Tickets...')">
+            <div class="service-card" onclick="showBusTrainSearch()">
                 <div class="service-icon">🚌</div>
                 <h3 class="service-title">Bus Ticket</h3>
                 <p class="service-desc">Comfortable intercity travel with the best amenities.</p>
                 <button class="service-btn">Book Bus</button>
             </div>
 
-            <div class="service-card" onclick="alert('Proceeding to Train Tickets...')">
+            <div class="service-card" onclick="showBusTrainSearch()">
                 <div class="service-icon">🚄</div>
                 <h3 class="service-title">Train Ticket</h3>
                 <p class="service-desc">Scenic, fast, and secure rail journeys across the country.</p>
                 <button class="service-btn">Book Train</button>
             </div>
+            <div class="service-card" onclick="showAccommodations()">
+                <div class="service-icon">🏨</div>
+                <h3 class="service-title">Accommodations</h3>
+                <p class="service-desc">Find nearby hotels, lodges and petrol pumps on map. Book lodges with advance.</p>
+                <button class="service-btn">Find Lodges</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bus & Train Search (From / To) -->
+    <div id="busTrainSearchPage" class="auth-container" style="display: none;">
+        <div class="auth-card" style="max-width: 500px; width: 100%;">
+            <button onclick="showDashboardPage()"
+                style="background:none;border:none;color:#667eea;cursor:pointer;margin-bottom:1rem;font-size:1rem;font-weight:bold;">← Back</button>
+            <h2 class="auth-title">🚌🚄 Buses & Trains</h2>
+            <p class="service-desc" style="text-align: center; margin-bottom: 1.5rem;">Enter your route to see available buses and trains.</p>
+            <form onsubmit="searchBusTrain(event)">
+                <div class="form-group">
+                    <label class="form-label">📍 From</label>
+                    <input type="text" id="busTrainFrom" class="form-input" placeholder="e.g. Bangalore, Mumbai" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">🎯 To</label>
+                    <input type="text" id="busTrainTo" class="form-input" placeholder="e.g. Chennai, Delhi" required>
+                </div>
+                <button type="submit" class="submit-btn" style="margin-top: 1rem;">🔍 Search Buses & Trains</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bus & Train Listings (demo vehicles with price & time) -->
+    <div id="busTrainListingsPage" class="auth-container"
+        style="flex-direction: column; justify-content: flex-start; padding-top: 5rem; display: none;">
+        <div class="dashboard-header">
+            <h2 class="dashboard-title">Available Buses & Trains</h2>
+            <p id="busTrainRouteDisplay" style="font-size: 1.2rem; margin-bottom: 2rem; color: white;"></p>
+            <button class="submit-btn"
+                style="width: auto; padding: 10px 30px; background: white; color: #667eea; font-weight: bold;"
+                onclick="showBusTrainSearch()">← Change Route</button>
+        </div>
+        <div style="width: 100%; max-width: 1000px;">
+            <h3 style="color: white; margin-bottom: 1rem; font-size: 1.4rem;">🚌 Buses</h3>
+            <div class="services-grid" id="busesContainer"></div>
+            <h3 style="color: white; margin: 2rem 0 1rem; font-size: 1.4rem;">🚄 Trains</h3>
+            <div class="services-grid" id="trainsContainer"></div>
+        </div>
+    </div>
+
+    <!-- Car Rent Options Page -->
+    <div id="carRentOptionsPage" class="auth-container"
+        style="flex-direction: column; justify-content: flex-start; padding-top: 5rem; display: none;">
+        <div class="dashboard-header">
+            <h2 class="dashboard-title">Choose Rental Type</h2>
+            <button class="submit-btn"
+                style="width: auto; padding: 10px 30px; background: white; color: #667eea; font-weight: bold;"
+                onclick="showDashboardPage()">Back</button>
+        </div>
+        <div class="services-grid">
+            <div class="service-card" onclick="showCarRentSearch('self-drive')">
+                <div class="service-icon">🔑</div>
+                <h3 class="service-title">Self Drive</h3>
+                <p class="service-desc">Drive the car yourself. Enjoy privacy and freedom.</p>
+                <button class="service-btn">Select</button>
+            </div>
+            <div class="service-card" onclick="showCarRentSearch('with-driver')">
+                <div class="service-icon">👨‍✈️</div>
+                <h3 class="service-title">With Driver</h3>
+                <p class="service-desc">Sit back and relax. Let our professional drivers take the wheel.</p>
+                <button class="service-btn">Select</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Car Rent Search Page -->
+    <div id="carRentSearchPage" class="auth-container" style="display: none;">
+        <div class="auth-card" style="max-width: 500px; width: 100%;">
+            <button onclick="showCarRentOptions()"
+                style="background:none;border:none;color:#667eea;cursor:pointer;margin-bottom:1rem;font-size:1rem;font-weight:bold;">←
+                Back</button>
+            <h2 class="auth-title">Plan Your Trip</h2>
+            <form onsubmit="searchCars(event)">
+                <div class="form-group">
+                    <label class="form-label">📍 From</label>
+                    <input type="text" id="tripFrom" class="form-input" placeholder="Enter Starting Location" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">🎯 To</label>
+                    <input type="text" id="tripTo" class="form-input" placeholder="Enter Destination" required>
+                </div>
+                <button type="submit" class="submit-btn" style="margin-top: 1rem;">🔍 Search Available Cars</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Car Listings Page -->
+    <div id="carListingsPage" class="auth-container"
+        style="flex-direction: column; justify-content: flex-start; padding-top: 5rem; display: none;">
+        <div class="dashboard-header">
+            <h2 class="dashboard-title">Available Cars Nearby</h2>
+            <p id="routeDisplay" style="font-size: 1.2rem; margin-bottom: 2rem; color: white;"></p>
+            <button class="submit-btn"
+                style="width: auto; padding: 10px 30px; background: white; color: #667eea; font-weight: bold;"
+                onclick="showCarRentSearch(null)">Back to Search</button>
+        </div>
+        <div class="services-grid" id="carsContainer">
+            <!-- Cars will be populated here by JS -->
+        </div>
+    </div>
+
+    <!-- Driver Notification Overlay -->
+    <div id="driverNotificationOverlay" class="auth-container"
+        style="z-index: 2000; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center;">
+        <div class="auth-card"
+            style="text-align: center; background: white; padding: 2rem; border-radius: 15px; width: 100%; max-width: 400px;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">🚗</div>
+            <h3 id="driverNotificationText" style="margin-bottom: 1rem; color: #6c757d;">you have no rents.</h3>
+            <div id="driverNotificationDetails"
+                style="margin-bottom: 1.5rem; text-align: left; background: #f8f9fa; padding: 15px; border-radius: 8px; display: none;">
+                <p><strong>📍 From:</strong> <span id="driverTripFrom"></span></p>
+                <div style="margin: 10px 0; text-align: center; color: #666;">↓</div>
+                <p><strong>🎯 To:</strong> <span id="driverTripTo"></span></p>
+            </div>
+            <button class="submit-btn" onclick="closeDriverNotification()">Close</button>
+        </div>
+    </div>
+
+    <!-- Booking Details Overlay (Step 1: name + timing for car, name + pickup for bus/train) -->
+    <div id="bookingDetailsOverlay" class="overlay-bg">
+        <div class="overlay-card">
+            <h2 class="auth-title" id="bookingDetailsTitle">Booking Details</h2>
+            <form id="bookingDetailsForm" onsubmit="submitBookingDetails(event)">
+                <div class="form-group">
+                    <label class="form-label">👤 Your Name</label>
+                    <input type="text" id="bookingCustomerName" class="form-input" placeholder="Full name" required>
+                </div>
+                <div class="form-group" id="bookingTimingGroup">
+                    <label class="form-label">⏱ Pickup Date & Time</label>
+                    <input type="datetime-local" id="bookingTiming" class="form-input" required>
+                </div>
+                <div class="form-group hidden" id="bookingPickupGroup">
+                    <label class="form-label">📍 Pickup Point</label>
+                    <input type="text" id="bookingPickupPoint" class="form-input" placeholder="e.g. Central Bus Stand, Platform 2">
+                </div>
+                <button type="submit" class="submit-btn">Confirm my trip</button>
+            </form>
+            <button class="submit-btn" style="margin-top:10px; background:#666;" onclick="closeBookingOverlay()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Payment Overlay (Step 2: total, advance for car; netbanking/PhonePe/QR for bus/train) -->
+    <div id="paymentOverlay" class="overlay-bg">
+        <div class="overlay-card">
+            <h2 class="auth-title">Pay Amount</h2>
+            <p id="paymentSummary" style="margin-bottom:1rem; color:#333;"></p>
+            <div id="carAdvanceBlock" class="form-group">
+                <p style="font-weight:bold; color:#28a745;" id="carAdvanceText"></p>
+                <button type="button" class="submit-btn" onclick="confirmCarAdvancePayment()">Pay Advance Amount</button>
+            </div>
+            <div id="busTrainPaymentBlock" class="form-group hidden">
+                <p style="margin-bottom:1rem;">Pay full amount: <strong id="busTrainTotalText"></strong></p>
+                <p style="margin-bottom:0.75rem;">Choose payment method:</p>
+                <label class="payment-radio-label">
+                    <input type="radio" name="paymentMethod" value="netbanking" onchange="showPaymentMethodData('netbanking')">
+                    <span>🏦 Net Banking</span>
+                </label>
+                <label class="payment-radio-label">
+                    <input type="radio" name="paymentMethod" value="gpay" onchange="showPaymentMethodData('gpay')">
+                    <span>📱 GPay</span>
+                </label>
+                <label class="payment-radio-label">
+                    <input type="radio" name="paymentMethod" value="qr" onchange="showPaymentMethodData('qr')">
+                    <span>📷 QR Code</span>
+                </label>
+                <div id="paymentMethodData" style="margin-top:1rem; min-height:80px;">
+                    <div id="netbankingData" class="payment-method-content hidden">
+                        <p class="form-label">Select your bank</p>
+                        <select class="form-input" id="bankSelect">
+                            <option value="">-- Select Bank --</option>
+                            <option value="sbi">State Bank of India</option>
+                            <option value="hdfc">HDFC Bank</option>
+                            <option value="icici">ICICI Bank</option>
+                            <option value="axis">Axis Bank</option>
+                            <option value="kotak">Kotak Mahindra Bank</option>
+                        </select>
+                        <p style="font-size:0.85rem; color:#666; margin-top:8px;">You will be redirected to your bank's secure portal to complete payment.</p>
+                    </div>
+                    <div id="gpayData" class="payment-method-content hidden">
+                        <p class="form-label">Pay via GPay</p>
+                        <p style="font-size:0.9rem;">UPI ID: <strong>rentmytrip@paytm</strong></p>
+                        <p style="font-size:0.85rem; color:#666;">Open Google Pay → Send money → Enter UPI ID or scan QR below. Amount: <strong id="gpayAmount"></strong></p>
+                    </div>
+                    <div id="qrCodeBlock" class="payment-method-content hidden" style="text-align:center;">
+                        <div class="qr-placeholder">Scan to pay<br>UPI QR Code<br>(Demo)</div>
+                        <p style="font-size:0.9rem; color:#666;">Amount: <strong id="qrAmount"></strong></p>
+                    </div>
+                </div>
+                <button type="button" class="submit-btn" id="payNowBtn" style="margin-top:1rem;" onclick="confirmBusTrainPayment()">Pay Full Amount</button>
+            </div>
+            <button class="submit-btn" style="margin-top:10px; background:#666;" onclick="closePaymentOverlay()">Back</button>
+        </div>
+    </div>
+
+    <!-- Confirmation Overlay (Step 3: message + driver details for car; done for bus/train) -->
+    <div id="confirmationOverlay" class="overlay-bg">
+        <div class="overlay-card">
+            <h2 class="auth-title" style="color:#28a745;">✓ Booking Confirmed</h2>
+            <p id="confirmationMessage" style="margin-bottom:1rem;"></p>
+            <div id="driverDetailsBlock" class="hidden">
+                <h3 style="margin:1rem 0 0.5rem;">Driver details (contact for pickup)</h3>
+                <div class="detail-block" id="driverDetailsContent"></div>
+                <h3 style="margin:1rem 0 0.5rem;">Customer details sent to driver</h3>
+                <div class="detail-block" id="customerDetailsToDriver"></div>
+            </div>
+            <div id="busTrainConfirmBlock" class="hidden">
+                <p style="margin-bottom:1rem;">Ticket confirmed after full payment. Details below:</p>
+                <div class="detail-block" id="busTrainTicketDetails"></div>
+            </div>
+            <div id="postBookingMapSection" class="confirmation-map-section hidden">
+                <h3 style="margin-bottom: 8px;">Nearby Places Around Your Destination</h3>
+                <p class="map-note" id="nearbySummaryText">Showing visiting places, hotels, lodges, and petrol pumps. The list below shows only places within 200 meters.</p>
+                <div class="nearby-legend">
+                    <span class="nearby-pill">📍 Visiting place</span>
+                    <span class="nearby-pill">🏢 Hotel</span>
+                    <span class="nearby-pill">🏠 Lodge</span>
+                    <span class="nearby-pill">⛽ Petrol pump</span>
+                </div>
+                <div class="map-wrap">
+                    <div id="postBookingMap"></div>
+                </div>
+                <div class="detail-block hidden" id="lodgeBookingStatus"></div>
+                <div id="nearbyPlacesList" class="nearby-list-grid"></div>
+            </div>
+            <button class="submit-btn" onclick="closeConfirmationOverlay()">Done</button>
+        </div>
+    </div>
+    <div id="lodgeBookingOverlay" class="overlay-bg">
+        <div class="overlay-card">
+            <h2 class="auth-title">Lodge Advance Booking</h2>
+            <div class="detail-block" id="lodgeBookingDetails"></div>
+            <p id="lodgeAdvanceText" style="margin-bottom: 1rem; color: #28a745; font-weight: bold;"></p>
+            <div class="form-group">
+                <label class="form-label">Guest Name</label>
+                <input type="text" id="lodgeGuestName" class="form-input" placeholder="Enter guest name">
+            </div>
+            <button class="submit-btn" onclick="confirmLodgeAdvancePayment()">Pay Lodge Advance</button>
+            <button class="submit-btn" style="margin-top:10px; background:#666;" onclick="closeLodgeBookingOverlay()">Cancel</button>
         </div>
     </div>
 
@@ -468,7 +1061,7 @@
         let currentLoginUserType = 'customer';
 
         function hideAllPages() {
-            const pages = ['welcomePage', 'registrationPage', 'loginPage', 'dashboardPage'];
+            const pages = ['welcomePage', 'registrationPage', 'loginPage', 'dashboardPage', 'carRentOptionsPage', 'carRentSearchPage', 'carListingsPage', 'busTrainSearchPage', 'busTrainListingsPage'];
             pages.forEach(page => {
                 const el = document.getElementById(page);
                 if (el) el.style.display = 'none';
@@ -522,30 +1115,425 @@
             button.classList.add('active');
         }
 
-        function handleRegistration(event) {
+        async function handleRegistration(event) {
             event.preventDefault();
             const formData = new FormData(event.target);
             const data = Object.fromEntries(formData);
             data.userType = currentUserType;
 
-            console.log('Registration data:', data);
-            alert('Registration successful! (Data logged to console)');
-            showLoginPage();
+            // Add a simple loading state indicator
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = 'Registering...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('http://localhost:5000/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json().catch(() => ({}));
+
+                if (result.success) {
+                    alert('Registration successful! You can now login.');
+                    showLoginPage();
+                } else {
+                    alert('Registration failed: ' + (result.message || 'Please try again.'));
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                alert('Could not connect to the server. Start the backend with: npm run backend (from project root). Ensure MongoDB is running — see MONGODB_SETUP.md.');
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
         }
 
-        function handleLogin(event) {
+        function closeDriverNotification() {
+            document.getElementById('driverNotificationOverlay').style.display = 'none';
+        }
+
+        async function handleLogin(event) {
             event.preventDefault();
             const formData = new FormData(event.target);
             const data = Object.fromEntries(formData);
             data.userType = currentLoginUserType;
 
-            console.log('Login data:', data);
-            alert(`Login successful! Welcome ${currentLoginUserType}`);
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = 'Logging in...';
+            submitBtn.disabled = true;
 
-            if (currentLoginUserType === 'customer') {
-                showDashboardPage();
+            try {
+                const response = await fetch('http://localhost:5000/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Store token securely
+                    localStorage.setItem('token', result.token);
+                    localStorage.setItem('user', JSON.stringify(result.user));
+
+                    if (currentLoginUserType === 'customer') {
+                        showDashboardPage();
+                    } else {
+                        // Check if a customer has searched for a trip recently
+                        // Try to get their last trip to show driver popup notification
+                        const overlay = document.getElementById('driverNotificationOverlay');
+                        const text = document.getElementById('driverNotificationText');
+                        const details = document.getElementById('driverNotificationDetails');
+                        const fromEl = document.getElementById('driverTripFrom');
+                        const toEl = document.getElementById('driverTripTo');
+
+                        const storedTrip = localStorage.getItem('currentTrip');
+
+                        if (storedTrip) {
+                            const parsed = JSON.parse(storedTrip);
+                            text.textContent = "you have an rent for your vechicle.";
+                            text.style.color = "#28a745";
+                            details.style.display = "block";
+                            fromEl.textContent = parsed.origin || parsed.from;
+                            toEl.textContent = parsed.destination || parsed.to;
+                        } else {
+                            text.textContent = "you have no rents.";
+                            text.style.color = "#6c757d";
+                            details.style.display = "none";
+                        }
+
+                        overlay.style.display = 'flex';
+                    }
+                } else {
+                    alert('Login failed: ' + result.message);
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                alert('Could not connect to the server. Start the backend with: npm run backend (from project root). See MONGODB_SETUP.md if needed.');
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        }
+
+        let currentRentType = 'self-drive';
+        let currentBooking = null;
+        let selectedPaymentMethod = null;
+        window.carDriversList = [];
+        window.busTrainBuses = [];
+        window.busTrainTrains = [];
+
+        function closeBookingOverlay() {
+            document.getElementById('bookingDetailsOverlay').classList.remove('show');
+        }
+        function closePaymentOverlay() {
+            document.getElementById('paymentOverlay').classList.remove('show');
+        }
+        function closeConfirmationOverlay() {
+            document.getElementById('confirmationOverlay').classList.remove('show');
+            currentBooking = null;
+        }
+
+        function openCarBooking(index) {
+            const driver = window.carDriversList[index];
+            if (!driver) return;
+            const trip = JSON.parse(localStorage.getItem('currentTrip') || '{}');
+            currentBooking = {
+                type: 'car',
+                vehicle: driver,
+                route: { from: trip.origin || '', to: trip.destination || '' },
+                totalAmount: driver.driveType === 'self-drive' ? 1500 : 2500,
+                advancePercent: 30
+            };
+            currentBooking.advanceAmount = Math.round(currentBooking.totalAmount * currentBooking.advancePercent / 100);
+            document.getElementById('bookingDetailsTitle').textContent = '🚗 Car booking details';
+            document.getElementById('bookingTimingGroup').classList.remove('hidden');
+            document.getElementById('bookingPickupGroup').classList.add('hidden');
+            document.getElementById('bookingCustomerName').value = '';
+            document.getElementById('bookingTiming').value = '';
+            document.getElementById('bookingDetailsOverlay').classList.add('show');
+        }
+
+        function openBusTrainBooking(mode, index) {
+            const list = mode === 'bus' ? window.busTrainBuses : window.busTrainTrains;
+            const item = list[index];
+            if (!item) return;
+            const fromEl = document.getElementById('busTrainFrom');
+            const toEl = document.getElementById('busTrainTo');
+            currentBooking = {
+                type: mode,
+                vehicle: item,
+                route: { from: fromEl ? fromEl.value.trim() : '', to: toEl ? toEl.value.trim() : '' },
+                totalAmount: item.price,
+                customerName: '',
+                pickupPoint: ''
+            };
+            document.getElementById('bookingDetailsTitle').textContent = (mode === 'bus' ? '🚌 Bus' : '🚄 Train') + ' booking details';
+            document.getElementById('bookingTimingGroup').classList.add('hidden');
+            document.getElementById('bookingPickupGroup').classList.remove('hidden');
+            document.getElementById('bookingCustomerName').value = '';
+            document.getElementById('bookingPickupPoint').value = '';
+            document.getElementById('bookingDetailsOverlay').classList.add('show');
+        }
+
+        function submitBookingDetails(event) {
+            event.preventDefault();
+            const name = document.getElementById('bookingCustomerName').value.trim();
+            if (!name) { alert('Please enter your name.'); return; }
+            if (currentBooking.type === 'car') {
+                currentBooking.customerName = name;
+                currentBooking.timing = document.getElementById('bookingTiming').value;
+                if (!currentBooking.timing) { alert('Please select pickup date & time.'); return; }
             } else {
-                alert('Redirecting to Driver Dashboard...');
+                currentBooking.customerName = name;
+                currentBooking.pickupPoint = document.getElementById('bookingPickupPoint').value.trim();
+                if (!currentBooking.pickupPoint) { alert('Please enter pickup point.'); return; }
+            }
+            closeBookingOverlay();
+            showPaymentOverlay();
+        }
+
+        function showPaymentOverlay() {
+            const summary = document.getElementById('paymentSummary');
+            const carBlock = document.getElementById('carAdvanceBlock');
+            const busBlock = document.getElementById('busTrainPaymentBlock');
+            document.querySelectorAll('input[name="paymentMethod"]').forEach(r => { r.checked = false; });
+            document.getElementById('netbankingData').classList.add('hidden');
+            document.getElementById('gpayData').classList.add('hidden');
+            document.getElementById('qrCodeBlock').classList.add('hidden');
+            selectedPaymentMethod = null;
+
+            if (currentBooking.type === 'car') {
+                carBlock.classList.remove('hidden');
+                busBlock.classList.add('hidden');
+                summary.textContent = 'Total amount for your trip: ₹' + currentBooking.totalAmount;
+                document.getElementById('carAdvanceText').textContent = 'Pay advance (30%): ₹' + currentBooking.advanceAmount;
+            } else {
+                carBlock.classList.add('hidden');
+                busBlock.classList.remove('hidden');
+                summary.textContent = '';
+                document.getElementById('busTrainTotalText').textContent = '₹' + currentBooking.totalAmount;
+                document.getElementById('qrAmount').textContent = '₹' + currentBooking.totalAmount;
+                document.getElementById('gpayAmount').textContent = '₹' + currentBooking.totalAmount;
+            }
+            document.getElementById('paymentOverlay').classList.add('show');
+        }
+
+        function showPaymentMethodData(method) {
+            selectedPaymentMethod = method;
+            document.getElementById('netbankingData').classList.add('hidden');
+            document.getElementById('gpayData').classList.add('hidden');
+            document.getElementById('qrCodeBlock').classList.add('hidden');
+            if (method === 'netbanking') document.getElementById('netbankingData').classList.remove('hidden');
+            else if (method === 'gpay') document.getElementById('gpayData').classList.remove('hidden');
+            else if (method === 'qr') document.getElementById('qrCodeBlock').classList.remove('hidden');
+        }
+
+        function confirmCarAdvancePayment() {
+            closePaymentOverlay();
+            currentBooking.advancePaid = true;
+            showCarConfirmation();
+        }
+
+        function confirmBusTrainPayment() {
+            const chosen = document.querySelector('input[name="paymentMethod"]:checked');
+            if (!chosen) {
+                alert('Please select a payment method (Net Banking, GPay, or QR Code).');
+                return;
+            }
+            selectedPaymentMethod = chosen.value;
+            if (selectedPaymentMethod === 'netbanking' && !document.getElementById('bankSelect').value) {
+                alert('Please select your bank.');
+                return;
+            }
+            closePaymentOverlay();
+            document.getElementById('confirmationMessage').textContent = 'Full amount paid. Your ' + (currentBooking.type === 'bus' ? 'bus' : 'train') + ' ticket is confirmed.';
+            document.getElementById('driverDetailsBlock').classList.add('hidden');
+            document.getElementById('busTrainConfirmBlock').classList.remove('hidden');
+            var v = currentBooking.vehicle;
+            var seatNum = ['A1','A2','B3','B5','S7','S12','C4','D8'][Math.floor(Math.random() * 8)];
+            var vehicleNumber = currentBooking.type === 'bus' ? (v.busNumber || v.operator + ' Bus') : v.number;
+            var driverName = currentBooking.type === 'bus' ? (v.driverName || '—') : (v.conductorName || '—');
+            var driverMobile = currentBooking.type === 'bus' ? (v.driverMobile || '—') : (v.conductorMobile || '—');
+            document.getElementById('busTrainTicketDetails').innerHTML =
+                '<p><strong>Seat Number:</strong> ' + seatNum + '</p>' +
+                '<p><strong>' + (currentBooking.type === 'bus' ? 'Bus' : 'Train') + ' Number:</strong> ' + vehicleNumber + '</p>' +
+                '<p><strong>' + (currentBooking.type === 'bus' ? 'Driver' : 'Conductor') + ' Name:</strong> ' + driverName + '</p>' +
+                '<p><strong>Mobile:</strong> ' + driverMobile + '</p>' +
+                '<p><strong>Pickup:</strong> ' + (currentBooking.pickupPoint || '—') + '</p>' +
+                '<p><strong>Route:</strong> ' + currentBooking.route.from + ' → ' + currentBooking.route.to + '</p>';
+            document.getElementById('confirmationOverlay').classList.add('show');
+        }
+
+        function showCarConfirmation() {
+            const d = currentBooking.vehicle;
+            const msg = document.getElementById('confirmationMessage');
+            msg.textContent = 'Trip confirmed! Advance paid. Driver has been notified with your details.';
+            document.getElementById('driverDetailsBlock').classList.remove('hidden');
+            document.getElementById('busTrainConfirmBlock').classList.add('hidden');
+            document.getElementById('driverDetailsContent').innerHTML =
+                '<p><strong>Name:</strong> ' + (d.name || 'Driver') + '</p>' +
+                '<p><strong>Phone:</strong> ' + (d.phone || '—') + '</p>' +
+                '<p><strong>Car:</strong> ' + (d.carName || '') + ' ' + (d.carModel || '') + '</p>' +
+                '<p><strong>Location:</strong> ' + (d.location || '—') + '</p>';
+            document.getElementById('customerDetailsToDriver').innerHTML =
+                '<p><strong>Customer:</strong> ' + currentBooking.customerName + '</p>' +
+                '<p><strong>Pickup time:</strong> ' + (currentBooking.timing || '—') + '</p>' +
+                '<p><strong>From:</strong> ' + currentBooking.route.from + ' → <strong>To:</strong> ' + currentBooking.route.to + '</p>';
+            document.getElementById('confirmationOverlay').classList.add('show');
+        }
+
+        function showBusTrainSearch() {
+            hideAllPages();
+            document.getElementById('busTrainSearchPage').style.display = 'flex';
+        }
+
+        function searchBusTrain(event) {
+            event.preventDefault();
+            const fromLoc = document.getElementById('busTrainFrom').value.trim();
+            const toLoc = document.getElementById('busTrainTo').value.trim();
+
+            hideAllPages();
+            document.getElementById('busTrainListingsPage').style.display = 'flex';
+            document.getElementById('busTrainRouteDisplay').textContent = `${fromLoc} → ${toLoc}`;
+
+            // Demo buses (3–4) with driver details
+            const demoBuses = [
+                { name: 'Volvo AC Sleeper', operator: 'VRL Travels', busNumber: 'KA-01-AB-1234', dep: '22:30', arr: '06:15', duration: '7h 45m', price: 899, driverName: 'Ramesh Kumar', driverMobile: '+91 98765 43210' },
+                { name: 'Non-AC Seater', operator: 'Orange Tours', busNumber: 'TN-22-CD-5678', dep: '08:00', arr: '14:30', duration: '6h 30m', price: 450, driverName: 'Suresh Patel', driverMobile: '+91 97654 32109' },
+                { name: 'AC Semi-Sleeper', operator: 'SRS Travels', busNumber: 'AP-09-EF-9012', dep: '23:00', arr: '07:00', duration: '8h', price: 699, driverName: 'Vijay Reddy', driverMobile: '+91 96543 21098' },
+                { name: 'Luxury AC', operator: 'KPN Travels', busNumber: 'KL-32-GH-3456', dep: '21:00', arr: '04:45', duration: '7h 45m', price: 1199, driverName: 'Anil Nair', driverMobile: '+91 95432 10987' }
+            ];
+            // Demo trains (3–4) with conductor details
+            const demoTrains = [
+                { name: 'Shatabdi Express', number: '12007', dep: '06:00', arr: '11:30', duration: '5h 30m', price: 850, conductorName: 'Rajesh Singh', conductorMobile: '+91 91234 56789' },
+                { name: 'Rajdhani Express', number: '12309', dep: '17:30', arr: '08:00', duration: '14h 30m', price: 1890, conductorName: 'Manoj Verma', conductorMobile: '+91 92345 67890' },
+                { name: 'Duronto Express', number: '12245', dep: '15:20', arr: '05:40', duration: '14h 20m', price: 1200, conductorName: 'Deepak Sharma', conductorMobile: '+91 93456 78901' },
+                { name: 'Mail Express', number: '12649', dep: '23:45', arr: '12:20', duration: '12h 35m', price: 620, conductorName: 'Sunil Gupta', conductorMobile: '+91 94567 89012' }
+            ];
+
+            window.busTrainBuses = demoBuses;
+            window.busTrainTrains = demoTrains;
+            const busesContainer = document.getElementById('busesContainer');
+            const trainsContainer = document.getElementById('trainsContainer');
+            busesContainer.innerHTML = '';
+            trainsContainer.innerHTML = '';
+
+            demoBuses.forEach((bus, i) => {
+                busesContainer.innerHTML += `
+                    <div class="service-card">
+                        <div class="service-icon">🚌</div>
+                        <h3 class="service-title">${bus.name}</h3>
+                        <p class="service-desc">${bus.operator}</p>
+                        <p class="service-desc"><strong>⏱ ${bus.dep} → ${bus.arr}</strong> (${bus.duration})</p>
+                        <p style="color: #28a745; font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">₹${bus.price}</p>
+                        <button class="service-btn" onclick="openBusTrainBooking('bus', ${i})">Book Bus</button>
+                    </div>
+                `;
+            });
+            demoTrains.forEach((train, i) => {
+                trainsContainer.innerHTML += `
+                    <div class="service-card">
+                        <div class="service-icon">🚄</div>
+                        <h3 class="service-title">${train.name}</h3>
+                        <p class="service-desc">${train.number}</p>
+                        <p class="service-desc"><strong>⏱ ${train.dep} → ${train.arr}</strong> (${train.duration})</p>
+                        <p style="color: #28a745; font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">₹${train.price}</p>
+                        <button class="service-btn" onclick="openBusTrainBooking('train', ${i})">Book Train</button>
+                    </div>
+                `;
+            });
+        }
+
+        function showCarRentOptions() {
+            hideAllPages();
+            document.getElementById('carRentOptionsPage').style.display = 'flex';
+        }
+
+        function showCarRentSearch(type) {
+            if (type !== null) currentRentType = type;
+            hideAllPages();
+            document.getElementById('carRentSearchPage').style.display = 'flex';
+        }
+
+        async function searchCars(event) {
+            event.preventDefault();
+            const fromLoc = document.getElementById('tripFrom').value;
+            const toLoc = document.getElementById('tripTo').value;
+
+            // Save to localStorage so Driver Notifications work seamlessly later out of the box
+            localStorage.setItem('currentTrip', JSON.stringify({
+                origin: fromLoc,
+                destination: toLoc,
+                vehicleType: 'Car (' + currentRentType + ')'
+            }));
+
+            hideAllPages();
+            document.getElementById('carListingsPage').style.display = 'flex';
+            document.getElementById('routeDisplay').textContent = `${fromLoc} → ${toLoc}`;
+
+            const carsContainer = document.getElementById('carsContainer');
+            carsContainer.innerHTML = '<div style="color:white;width:100%;text-align:center;"><h3>Fetching cars from database...</h3></div>';
+
+            try {
+                // Fetch real registered drivers from MongoDB backend
+                const response = await fetch('http://localhost:5000/api/users');
+                const result = await response.json();
+
+                carsContainer.innerHTML = '';
+
+                if (result.success) {
+                    // Filter down to only drivers matching the requested type
+                    const matchingDrivers = result.users.filter(u => u.userType === 'driver' && u.driveType === currentRentType);
+
+                    if (matchingDrivers.length > 0) {
+                        window.carDriversList = matchingDrivers;
+                        matchingDrivers.forEach((driver, idx) => {
+                            const carIcon = driver.carType === 'suv' ? '🚙' : driver.carType === 'hatchback' ? '🚐' : '🚗';
+                            const carPhotoHtml = driver.carPhoto ?
+                                `<img src="${driver.carPhoto}" alt="${driver.carName}" style="width:100%; height:150px; object-fit:cover; border-radius:10px; margin-bottom:1rem;" onerror="this.style.display='none'">` :
+                                `<div class="service-icon">${carIcon}</div>`;
+
+                            const carName = driver.carName || 'Unknown Vehicle';
+                            const carModel = driver.carModel || '';
+                            const location = driver.location || 'Unknown';
+                            const price = driver.driveType === 'self-drive' ? '1500' : '2500';
+
+                            carsContainer.innerHTML += `
+                                <div class="service-card">
+                                    ${carPhotoHtml}
+                                    <h3 class="service-title">${carName} ${carModel}</h3>
+                                    <p class="service-desc" style="font-weight: bold;">📍 Location: ${location}</p>
+                                    <p class="service-desc">${driver.carType || 'Car'} | ${currentRentType === 'self-drive' ? 'Self Drive' : 'With Driver'}</p>
+                                    <p style="color: #28a745; font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">₹${price}/day</p>
+                                    <button class="service-btn" onclick="openCarBooking(${idx})">Book Now</button>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        window.carDriversList = [];
+                        carsContainer.innerHTML = `
+                            <div style="grid-column: 1 / -1; text-align: center; color: white;">
+                                <h3 style="margin-bottom: 1rem;">No registered ${currentRentType === 'self-drive' ? 'Self Drive' : 'With Driver'} cars available in the Database.</h3>
+                                <p>Go back, register a Driver account in the DB to see them here.</p>
+                            </div>
+                        `;
+                    }
+                } else {
+                    throw new Error('Failed to load users');
+                }
+            } catch (error) {
+                console.error('Error fetching drivers from database:', error);
+                carsContainer.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; color: white; background: #dc3545; padding: 20px; border-radius: 10px;">
+                        <h3 style="margin-bottom: 1rem;">Failed to connect to the Database.</h3>
+                        <p>Please make sure the Node.js backend server is running on localhost:5000</p>
+                    </div>
+                `;
             }
         }
     </script>

@@ -17,7 +17,9 @@ const RegistrationPage = () => {
     carName: '',
     carModel: '',
     numberOfSeats: '',
-    carType: ''
+    carType: '',
+    location: '',
+    carPhoto: ''
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -45,10 +47,10 @@ const RegistrationPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validate form
     const validationErrors = validateRegistrationForm(formData, userType);
-    
+
     // Check password confirmation
     if (formData.password !== formData.confirmPassword) {
       validationErrors.confirmPassword = 'Passwords do not match';
@@ -60,7 +62,7 @@ const RegistrationPage = () => {
     }
 
     setLoading(true);
-    
+
     try {
       const registrationData = {
         name: formData.name,
@@ -74,12 +76,14 @@ const RegistrationPage = () => {
           carName: formData.carName,
           carModel: formData.carModel,
           numberOfSeats: formData.numberOfSeats,
-          carType: formData.carType
+          carType: formData.carType,
+          location: formData.location,
+          carPhoto: formData.carPhoto
         })
       };
 
       const response = await axios.post('http://localhost:5000/api/register', registrationData);
-      
+
       if (response.data.success) {
         setSuccessMessage('Registration successful! Redirecting to login...');
         setTimeout(() => {
@@ -103,7 +107,7 @@ const RegistrationPage = () => {
         <h2 className="auth-title">
           {userType === 'customer' ? '👤 Join as Customer' : '🚗 Become a Driver'}
         </h2>
-        
+
         <div className="user-type-selector">
           <button
             className={`user-type-btn ${userType === 'customer' ? 'active' : ''}`}
@@ -166,7 +170,7 @@ const RegistrationPage = () => {
               type="password"
               name="password"
               className="form-input"
-              placeholder="Minimum 6 characters (letters + numbers)"
+              placeholder="Enter password"
               value={formData.password}
               onChange={handleInputChange}
             />
@@ -192,7 +196,7 @@ const RegistrationPage = () => {
               type="tel"
               name="phone"
               className="form-input"
-              placeholder="10-digit phone number"
+              placeholder="Enter phone number"
               value={formData.phone}
               onChange={handleInputChange}
             />
@@ -291,11 +295,37 @@ const RegistrationPage = () => {
                 </select>
                 {errors.carType && <span className="error-message">{errors.carType}</span>}
               </div>
+
+              <div className="form-group">
+                <label className="form-label">📍 Driver/Car Location</label>
+                <input
+                  type="text"
+                  name="location"
+                  className="form-input"
+                  placeholder="e.g., MG Road, Bangalore"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                />
+                {errors.location && <span className="error-message">{errors.location}</span>}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">📸 Car Photo URL</label>
+                <input
+                  type="url"
+                  name="carPhoto"
+                  className="form-input"
+                  placeholder="Enter link to car image"
+                  value={formData.carPhoto}
+                  onChange={handleInputChange}
+                />
+                {errors.carPhoto && <span className="error-message">{errors.carPhoto}</span>}
+              </div>
             </>
           )}
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="submit-btn"
             disabled={loading}
           >
