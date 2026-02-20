@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Rent My Trip
 
 A vehicle rental platform built with React and MongoDB.
@@ -155,3 +156,6 @@ The application will open in your browser at `http://localhost:3000`
 - Rating and review system
 - Real-time notifications
 - Mobile app development
+=======
+# rent-my-trip
+>>>>>>> f5b38a3300b5b32057842a5aabb94f04e8184eab
