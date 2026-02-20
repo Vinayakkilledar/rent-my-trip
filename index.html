@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -88,6 +89,7 @@
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -200,16 +202,87 @@
         .hidden {
             display: none !important;
         }
+
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: white;
+            width: 100%;
+        }
+
+        .dashboard-title {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .service-card {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .service-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .service-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .service-title {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 1rem;
+        }
+
+        .service-desc {
+            color: #666;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .service-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.3s ease;
+        }
+
+        .service-btn:hover {
+            transform: translateY(-2px);
+        }
     </style>
 </head>
+
 <body>
     <!-- Welcome Page -->
     <div id="welcomePage" class="video-container">
         <video class="video-background" autoplay loop muted playsInline>
-            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4">
+            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+                type="video/mp4">
             Your browser does not support the video tag.
         </video>
-        
+
         <div class="video-overlay">
             <h1 class="welcome-title">Rent My Trip</h1>
             <p class="welcome-subtitle">
@@ -225,7 +298,7 @@
     <div id="registrationPage" class="auth-container">
         <div class="auth-card">
             <h2 class="auth-title">Join Rent My Trip</h2>
-            
+
             <div class="user-type-selector">
                 <button class="user-type-btn active" onclick="setUserType('customer', this)">
                     Customer
@@ -259,7 +332,8 @@
                 <div id="driverFields" class="hidden">
                     <div class="form-group">
                         <label class="form-label">License Number</label>
-                        <input type="text" name="licenseNumber" class="form-input" placeholder="Enter your driving license number">
+                        <input type="text" name="licenseNumber" class="form-input"
+                            placeholder="Enter your driving license number">
                     </div>
 
                     <div class="form-group">
@@ -322,7 +396,7 @@
     <div id="loginPage" class="auth-container">
         <div class="auth-card">
             <h2 class="auth-title">Welcome Back</h2>
-            
+
             <div class="user-type-selector">
                 <button class="user-type-btn active" onclick="setLoginUserType('customer', this)">
                     Customer
@@ -354,32 +428,77 @@
         </div>
     </div>
 
+    <!-- Dashboard Page -->
+    <div id="dashboardPage" class="auth-container"
+        style="flex-direction: column; justify-content: flex-start; padding-top: 5rem;">
+        <div class="dashboard-header">
+            <h2 class="dashboard-title">Welcome to Your Dashboard</h2>
+            <p style="font-size: 1.2rem; margin-bottom: 2rem; color: white;">Select a service to start your journey</p>
+            <button class="submit-btn"
+                style="width: auto; padding: 10px 30px; background: white; color: #667eea; font-weight: bold;"
+                onclick="showWelcomePage()">Logout</button>
+        </div>
+
+        <div class="services-grid">
+            <div class="service-card" onclick="alert('Proceeding to Car Rent...')">
+                <div class="service-icon">🚗</div>
+                <h3 class="service-title">Car Rent</h3>
+                <p class="service-desc">Self-drive or with a driver. Premium cars for your trips.</p>
+                <button class="service-btn">Book a Car</button>
+            </div>
+
+            <div class="service-card" onclick="alert('Proceeding to Bus Tickets...')">
+                <div class="service-icon">🚌</div>
+                <h3 class="service-title">Bus Ticket</h3>
+                <p class="service-desc">Comfortable intercity travel with the best amenities.</p>
+                <button class="service-btn">Book Bus</button>
+            </div>
+
+            <div class="service-card" onclick="alert('Proceeding to Train Tickets...')">
+                <div class="service-icon">🚄</div>
+                <h3 class="service-title">Train Ticket</h3>
+                <p class="service-desc">Scenic, fast, and secure rail journeys across the country.</p>
+                <button class="service-btn">Book Train</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentUserType = 'customer';
         let currentLoginUserType = 'customer';
 
+        function hideAllPages() {
+            const pages = ['welcomePage', 'registrationPage', 'loginPage', 'dashboardPage'];
+            pages.forEach(page => {
+                const el = document.getElementById(page);
+                if (el) el.style.display = 'none';
+            });
+        }
+
         function showRegistrationPage() {
-            document.getElementById('welcomePage').style.display = 'none';
-            document.getElementById('loginPage').style.display = 'none';
+            hideAllPages();
             document.getElementById('registrationPage').style.display = 'flex';
         }
 
         function showLoginPage() {
-            document.getElementById('welcomePage').style.display = 'none';
-            document.getElementById('registrationPage').style.display = 'none';
+            hideAllPages();
             document.getElementById('loginPage').style.display = 'flex';
         }
 
         function showWelcomePage() {
-            document.getElementById('registrationPage').style.display = 'none';
-            document.getElementById('loginPage').style.display = 'none';
+            hideAllPages();
             document.getElementById('welcomePage').style.display = 'block';
+        }
+
+        function showDashboardPage() {
+            hideAllPages();
+            document.getElementById('dashboardPage').style.display = 'flex';
         }
 
         function setUserType(type, button) {
             currentUserType = type;
             document.getElementById('userTypeText').textContent = type.charAt(0).toUpperCase() + type.slice(1);
-            
+
             document.querySelectorAll('#registrationPage .user-type-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
@@ -396,7 +515,7 @@
         function setLoginUserType(type, button) {
             currentLoginUserType = type;
             document.getElementById('loginUserTypeText').textContent = type.charAt(0).toUpperCase() + type.slice(1);
-            
+
             document.querySelectorAll('#loginPage .user-type-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
@@ -422,13 +541,14 @@
 
             console.log('Login data:', data);
             alert(`Login successful! Welcome ${currentLoginUserType}`);
-            
+
             if (currentLoginUserType === 'customer') {
-                alert('Redirecting to Customer Dashboard...');
+                showDashboardPage();
             } else {
                 alert('Redirecting to Driver Dashboard...');
             }
         }
     </script>
 </body>
+
 </html>

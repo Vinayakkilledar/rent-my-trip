@@ -1,0 +1,11 @@
+[
+  {
+    "id": "1771601361319",
+    "name": "Test User",
+    "email": "test@example.com",
+    "password": "$2a$10$0bHX13/XLjEJIPIW8Ccg7urMAIDdI32vcrxuE.M0eD46HkrcESgTa",
+    "phone": "1234567890",
+    "userType": "customer driver",
+    "createdAt": "2026-02-20T15:29:21.319Z"
+  }
+]

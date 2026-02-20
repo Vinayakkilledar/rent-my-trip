@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { validateLoginForm } from '../utils/validation';
+import TripDialog from './TripDialog';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const [userType, setUserType] = useState('customer');
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    userType: 'customer'
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [showTripDialog, setShowTripDialog] = useState(false);
+  const [userType, setUserType] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   const handleInputChange = (e) => {
@@ -31,17 +34,9 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate form
-    const validationErrors = validateLoginForm(formData);
-    
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
-
     setLoading(true);
-    
+    setErrors({});
+
     try {
       const loginData = {
         email: formData.email,
@@ -56,15 +51,10 @@ const LoginPage = () => {
         localStorage.setItem('userType', userType);
         localStorage.setItem('userName', response.data.user.name);
         
-        setSuccessMessage(`Welcome back, ${response.data.user.name}! Redirecting...`);
-        
-        setTimeout(() => {
-          if (userType === 'customer') {
-            navigate('/customer-dashboard');
-          } else {
-            navigate('/driver-dashboard');
-          }
-        }, 1500);
+        // Show trip dialog instead of redirecting
+        setUserType(userType);
+        setShowTripDialog(true);
+        setSuccessMessage('Login successful! 🎉');
       } else {
         setErrors({ submit: response.data.message });
       }
@@ -77,81 +67,110 @@ const LoginPage = () => {
     }
   };
 
+  const handleTripSubmit = (tripDetails) => {
+    // Store trip details
+    localStorage.setItem('currentTrip', JSON.stringify(tripDetails));
+    
+    // Navigate to trip planner or dashboard
+    navigate('/trip-planner');
+  };
+
+  const handleTripDialogClose = () => {
+    setShowTripDialog(false);
+    // Navigate to trip planner even if user closes dialog
+    navigate('/trip-planner');
+  };
+
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h2 className="auth-title">Welcome Back 🎉</h2>
-        
-        <div className="user-type-selector">
-          <button
-            className={`user-type-btn ${userType === 'customer' ? 'active' : ''}`}
-            onClick={() => setUserType('customer')}
-            type="button"
-          >
-            Customer
-          </button>
-          <button
-            className={`user-type-btn ${userType === 'driver' ? 'active' : ''}`}
-            onClick={() => setUserType('driver')}
-            type="button"
-          >
-            Driver
-          </button>
-        </div>
-
-        {successMessage && (
-          <div className="success-message" style={{ textAlign: 'center', marginBottom: '1rem', color: '#28a745', fontWeight: 'bold' }}>
-            ✓ {successMessage}
-          </div>
-        )}
-
-        {errors.submit && (
-          <div className="error-message" style={{ textAlign: 'center', marginBottom: '1rem', color: '#dc3545', fontWeight: 'bold' }}>
-            ✗ {errors.submit}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">✉️ Email Address</label>
-            <input
-              type="email"
-              name="email"
-              className="form-input"
-              placeholder="Enter your email"
-              value={formData.email}
-              onChange={handleInputChange}
-            />
-            {errors.email && <span className="error-message">{errors.email}</span>}
+    <>
+      <div className="auth-container">
+        <div className="auth-card">
+          <h2 className="auth-title">Welcome Back 🎉</h2>
+          
+          <div className="user-type-selector">
+            <button
+              className={`user-type-btn ${userType === 'customer' ? 'active' : ''}`}
+              onClick={() => setUserType('customer')}
+              type="button"
+            >
+              Customer
+            </button>
+            <button
+              className={`user-type-btn ${userType === 'driver' ? 'active' : ''}`}
+              onClick={() => setUserType('driver')}
+              type="button"
+            >
+              Driver
+            </button>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">🔒 Password</label>
-            <input
-              type="password"
-              name="password"
-              className="form-input"
-              placeholder="Enter your password"
-              value={formData.password}
-              onChange={handleInputChange}
-            />
-            {errors.password && <span className="error-message">{errors.password}</span>}
+          {successMessage && (
+            <div className="success-message" style={{ textAlign: 'center', marginBottom: '1rem', color: '#28a745', fontWeight: 'bold' }}>
+              ✓ {successMessage}
+            </div>
+          )}
+
+          {errors.submit && (
+            <div className="error-message" style={{ textAlign: 'center', marginBottom: '1rem', color: '#dc3545', fontWeight: 'bold' }}>
+              ✗ {errors.submit}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="auth-form">
+            <div className="form-group">
+              <label className="form-label">📧 Email</label>
+              <input
+                type="email"
+                name="email"
+                className="form-input"
+                placeholder="Enter your email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+              />
+              {errors.email && <span className="error-message">{errors.email}</span>}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">🔒 Password</label>
+              <input
+                type="password"
+                name="password"
+                className="form-input"
+                placeholder="Enter your password"
+                value={formData.password}
+                onChange={handleInputChange}
+                required
+              />
+              {errors.password && <span className="error-message">{errors.password}</span>}
+            </div>
+
+            {errors.submit && (
+              <div className="error-message submit-error">{errors.submit}</div>
+            )}
+
+            <button
+              type="submit"
+              className="submit-btn"
+              disabled={loading}
+            >
+              {loading ? '⏳ Logging in...' : `✓ Login as ${userType === 'customer' ? 'Customer' : 'Driver'}`}
+            </button>
+          </form>
+
+          <div className="link-text">
+            Don't have an account? <a href="/register">Register here</a>
           </div>
-
-          <button 
-            type="submit" 
-            className="submit-btn"
-            disabled={loading}
-          >
-            {loading ? '⏳ Logging in...' : `✓ Login as ${userType === 'customer' ? 'Customer' : 'Driver'}`}
-          </button>
-        </form>
-
-        <div className="link-text">
-          Don't have an account? <a href="/register">Register here</a>
         </div>
       </div>
-    </div>
+      
+      <TripDialog
+        isOpen={showTripDialog}
+        onClose={handleTripDialogClose}
+        userType={userType}
+        onTripSubmit={handleTripSubmit}
+      />
+    </>
   );
 };
 
