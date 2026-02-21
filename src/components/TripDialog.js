@@ -339,19 +339,20 @@ const TripDialog = ({ isOpen, onClose, userType, onTripSubmit, onTripAssistance 
     </div>
   </div>
   
-  <DriverNotifications
-    isOpen={showNotifications}
-    onClose={handleNotificationsClose}
-    userType={userType}
-  />
+      <DriverNotifications
+        isOpen={showNotifications}
+        onClose={handleNotificationsClose}
+        userType={userType}
+      />
   
-  <BookingSystem
-    isOpen={showBooking}
-    onClose={handleBookingClose}
-    userType={userType}
-    tripData={tripData}
-    onTripAssistance={onTripAssistance}
-  />
-);
+      <BookingSystem
+        isOpen={showBooking}
+        onClose={handleBookingClose}
+        userType={userType}
+        tripData={tripData}
+        onTripAssistance={onTripAssistance}
+      />
+    </>
+  );
 
 export default TripDialog;

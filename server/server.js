@@ -48,23 +48,6 @@ const lodgeBookingSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
   placeId: { type: String, required: true },
   lodgeName: { type: String, required: true },
-  address: { type: String },
-  lat: { type: Number },
-  lng: { type: Number },
-  checkIn: { type: String },
-  checkOut: { type: String },
-  roomNumber: { type: String },
-  bookingId: { type: String, unique: true },
-  advanceAmount: { type: Number },
-  paymentMethod: { type: String },
-  createdAt: { type: Date, default: Date.now }
-});
-
-const LodgeBooking = mongoose.model('LodgeBooking', lodgeBookingSchema);
-
-const lodgeBookingSchema = new mongoose.Schema({
-  placeId: { type: String, required: true },
-  lodgeName: { type: String, required: true },
   address: { type: String, default: '' },
   lat: { type: Number, required: true },
   lng: { type: Number, required: true },
@@ -74,7 +57,6 @@ const lodgeBookingSchema = new mongoose.Schema({
   bookingId: { type: String, required: true, unique: true },
   advanceAmount: { type: Number, required: true },
   paymentMethod: { type: String, required: true },
-  userId: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -290,7 +272,8 @@ app.post('/api/lodge-bookings', requireDb, async (req, res) => {
 
 app.get('/api/lodge-bookings', requireDb, async (req, res) => {
   try {
-    const bookings = await LodgeBooking.find().sort({ createdAt: -1 });
+    const filter = req.query.userId ? { userId: req.query.userId } : {};
+    const bookings = await LodgeBooking.find(filter).sort({ createdAt: -1 }).limit(200);
     res.json({ success: true, bookings });
   } catch (error) {
     console.error('Error fetching lodge bookings:', error);
@@ -331,38 +314,6 @@ app.get('/api/status', async (req, res) => {
   } catch (error) {
     console.error('❌ Status check error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// Lodge bookings endpoints
-app.post('/api/lodge-bookings', requireDb, async (req, res) => {
-  try {
-    const { userId, placeId, lodgeName, address, lat, lng, checkIn, checkOut, roomNumber, bookingId, advanceAmount, paymentMethod } = req.body;
-    if (!placeId || !lodgeName || !bookingId) {
-      return res.status(400).json({ success: false, message: 'Missing required booking fields' });
-    }
-
-    const booking = new LodgeBooking({ userId, placeId, lodgeName, address, lat, lng, checkIn, checkOut, roomNumber, bookingId, advanceAmount, paymentMethod });
-    await booking.save();
-    res.status(201).json({ success: true, booking });
-  } catch (err) {
-    console.error('Error saving lodge booking:', err);
-    if (err.code === 11000) {
-      return res.status(400).json({ success: false, message: 'Booking ID already exists' });
-    }
-    res.status(500).json({ success: false, message: 'Could not save booking' });
-  }
-});
-
-app.get('/api/lodge-bookings', requireDb, async (req, res) => {
-  try {
-    const filter = {};
-    if (req.query.userId) filter.userId = req.query.userId;
-    const bookings = await LodgeBooking.find(filter).sort({ createdAt: -1 }).limit(200);
-    res.json({ success: true, bookings });
-  } catch (err) {
-    console.error('Error fetching lodge bookings:', err);
-    res.status(500).json({ success: false, message: 'Could not fetch bookings' });
   }
 });
 

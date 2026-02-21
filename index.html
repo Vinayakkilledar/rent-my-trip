@@ -1226,6 +1226,20 @@
         window.carDriversList = [];
         window.busTrainBuses = [];
         window.busTrainTrains = [];
+        let googleMapsLoaderPromise = null;
+        let postBookingMap = null;
+        let postBookingCenter = null;
+        let postBookingMarkers = [];
+        let allNearbyPlaces = [];
+        let nearbyPlacesWithin200m = [];
+        let selectedLodgePlaceId = null;
+        let lodgeBookings = {};
+        const nearbyCategoryConfig = {
+            tourist_attraction: { icon: '📍', label: 'Visiting place' },
+            hotel: { icon: '🏢', label: 'Hotel' },
+            lodging: { icon: '🏠', label: 'Lodge' },
+            gas_station: { icon: '⛽', label: 'Petrol pump' }
+        };
 
         function closeBookingOverlay() {
             document.getElementById('bookingDetailsOverlay').classList.remove('show');
@@ -1235,7 +1249,327 @@
         }
         function closeConfirmationOverlay() {
             document.getElementById('confirmationOverlay').classList.remove('show');
+            clearPostBookingMarkers();
+            const mapSection = document.getElementById('postBookingMapSection');
+            if (mapSection) mapSection.classList.add('hidden');
+            document.getElementById('nearbyPlacesList').innerHTML = '';
+            document.getElementById('postBookingMap').innerHTML = '';
+            document.getElementById('lodgeBookingStatus').classList.add('hidden');
+            document.getElementById('lodgeBookingStatus').innerHTML = '';
+            closeLodgeBookingOverlay();
             currentBooking = null;
+        }
+
+        function closeLodgeBookingOverlay() {
+            document.getElementById('lodgeBookingOverlay').classList.remove('show');
+            selectedLodgePlaceId = null;
+            const guestInput = document.getElementById('lodgeGuestName');
+            if (guestInput) guestInput.value = '';
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function formatDistanceMeters(meters) {
+            if (meters < 1000) return Math.round(meters) + ' m';
+            return (meters / 1000).toFixed(2) + ' km';
+        }
+
+        function clearPostBookingMarkers() {
+            postBookingMarkers.forEach(marker => marker.setMap(null));
+            postBookingMarkers = [];
+            postBookingMap = null;
+            postBookingCenter = null;
+            allNearbyPlaces = [];
+            nearbyPlacesWithin200m = [];
+        }
+
+        async function ensureGoogleMapsLoaded() {
+            if (window.google && window.google.maps && window.google.maps.places) return true;
+            const apiKey = (window.GOOGLE_MAPS_API_KEY || localStorage.getItem('googleMapsApiKey') || '').trim();
+            if (!apiKey) return false;
+
+            if (!googleMapsLoaderPromise) {
+                googleMapsLoaderPromise = new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places,geometry`;
+                    script.async = true;
+                    script.onload = () => resolve(true);
+                    script.onerror = () => reject(new Error('Google Maps script failed to load'));
+                    document.head.appendChild(script);
+                });
+            }
+
+            try {
+                await googleMapsLoaderPromise;
+                return true;
+            } catch (err) {
+                console.error(err);
+                return false;
+            }
+        }
+
+        function nearbySearchPromise(service, request) {
+            return new Promise((resolve) => {
+                service.nearbySearch(request, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK && Array.isArray(results)) resolve(results);
+                    else resolve([]);
+                });
+            });
+        }
+
+        function geocodeDestination(destinationText) {
+            return new Promise((resolve) => {
+                if (!destinationText) {
+                    resolve(null);
+                    return;
+                }
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({ address: destinationText }, (results, status) => {
+                    if (status === 'OK' && results && results[0] && results[0].geometry && results[0].geometry.location) {
+                        resolve(results[0].geometry.location);
+                    } else {
+                        resolve(null);
+                    }
+                });
+            });
+        }
+
+        function getCurrentLocationLatLng() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve(null);
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => resolve(new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude)),
+                    () => resolve(null),
+                    { timeout: 5000 }
+                );
+            });
+        }
+
+        function renderNearbyList() {
+            const listEl = document.getElementById('nearbyPlacesList');
+            listEl.innerHTML = '';
+            nearbyPlacesWithin200m = allNearbyPlaces.filter(p => p.distanceMeters <= 200).sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+            if (nearbyPlacesWithin200m.length === 0) {
+                listEl.innerHTML = '<div class="nearby-empty">No listed places found within 200 m. Move around on the map and try again.</div>';
+                return;
+            }
+
+            nearbyPlacesWithin200m.forEach((place) => {
+                const card = document.createElement('div');
+                card.className = 'nearby-item' + (place.isBooked ? ' booked' : '');
+                const lodgeAction = place.category === 'lodging'
+                    ? (place.isBooked
+                        ? `<button class="mini-btn" disabled>Room ${escapeHtml(place.roomNumber)} confirmed</button>`
+                        : `<button class="mini-btn" onclick="openLodgeAdvanceBooking('${escapeHtml(place.id)}')">Book Lodge (Advance)</button>`)
+                    : '';
+                card.innerHTML = `
+                    <h4>${place.icon} ${escapeHtml(place.name)}</h4>
+                    <p class="nearby-meta"><strong>Type:</strong> ${escapeHtml(place.label)}</p>
+                    <p class="nearby-meta"><strong>Distance:</strong> ${formatDistanceMeters(place.distanceMeters)}</p>
+                    <p class="nearby-meta"><strong>Address:</strong> ${escapeHtml(place.address || 'Address unavailable')}</p>
+                    ${lodgeAction}
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        function createNearbyMarkers() {
+            clearPostBookingMarkers();
+            if (!postBookingMap) return;
+
+            const destinationMarker = new google.maps.Marker({
+                map: postBookingMap,
+                position: postBookingCenter,
+                title: 'Destination',
+                icon: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+            });
+            postBookingMarkers.push(destinationMarker);
+
+            const infoWindow = new google.maps.InfoWindow();
+            allNearbyPlaces.forEach((place) => {
+                const marker = new google.maps.Marker({
+                    map: postBookingMap,
+                    position: place.position,
+                    label: { text: place.icon, fontSize: '18px' },
+                    title: place.name
+                });
+                marker.addListener('click', () => {
+                    const lodgeBtn = place.category === 'lodging' && !place.isBooked
+                        ? `<button class="mini-btn" style="margin-top:8px;" onclick="openLodgeAdvanceBooking('${escapeHtml(place.id)}')">Book Lodge (Advance)</button>`
+                        : '';
+                    const bookedText = place.isBooked ? `<p style="margin-top:6px; color:#28a745;"><strong>Room ${escapeHtml(place.roomNumber)}</strong> confirmed</p>` : '';
+                    infoWindow.setContent(
+                        `<div style="max-width:220px;">
+                            <strong>${escapeHtml(place.name)}</strong><br>
+                            ${escapeHtml(place.label)}<br>
+                            ${formatDistanceMeters(place.distanceMeters)} away
+                            ${lodgeBtn}
+                            ${bookedText}
+                        </div>`
+                    );
+                    infoWindow.open(postBookingMap, marker);
+                });
+                postBookingMarkers.push(marker);
+            });
+        }
+
+        function openLodgeAdvanceBooking(placeId) {
+            const place = allNearbyPlaces.find(p => p.id === placeId && p.category === 'lodging');
+            if (!place) {
+                alert('Lodge not found.');
+                return;
+            }
+            selectedLodgePlaceId = placeId;
+            const sampleNightlyRate = 1200 + Math.floor(Math.random() * 1200);
+            place.nightlyRate = place.nightlyRate || sampleNightlyRate;
+            place.advanceAmount = Math.round(place.nightlyRate * 0.3);
+
+            document.getElementById('lodgeBookingDetails').innerHTML =
+                `<p><strong>Lodge:</strong> ${escapeHtml(place.name)}</p>
+                 <p><strong>Distance:</strong> ${formatDistanceMeters(place.distanceMeters)}</p>
+                 <p><strong>Approx. room tariff:</strong> ₹${place.nightlyRate}</p>`;
+            document.getElementById('lodgeAdvanceText').textContent = 'Pay 30% advance: ₹' + place.advanceAmount;
+            document.getElementById('lodgeBookingOverlay').classList.add('show');
+        }
+
+        function confirmLodgeAdvancePayment() {
+            if (!selectedLodgePlaceId) return;
+            const place = allNearbyPlaces.find(p => p.id === selectedLodgePlaceId);
+            if (!place) return;
+
+            const guestName = document.getElementById('lodgeGuestName').value.trim();
+            if (!guestName) {
+                alert('Please enter guest name.');
+                return;
+            }
+
+            const roomNumber = 'R' + (100 + Math.floor(Math.random() * 800));
+            place.isBooked = true;
+            place.guestName = guestName;
+            place.roomNumber = roomNumber;
+            lodgeBookings[place.id] = { guestName: guestName, roomNumber: roomNumber, advance: place.advanceAmount };
+
+            closeLodgeBookingOverlay();
+
+            const lodgeBookingStatus = document.getElementById('lodgeBookingStatus');
+            lodgeBookingStatus.classList.remove('hidden');
+            lodgeBookingStatus.innerHTML =
+                `<p><strong>Lodge booked:</strong> ${escapeHtml(place.name)}</p>
+                 <p><strong>Guest:</strong> ${escapeHtml(guestName)}</p>
+                 <p><strong>Room Number:</strong> ${escapeHtml(roomNumber)}</p>
+                 <p><strong>Advance Paid:</strong> ₹${place.advanceAmount}</p>`;
+
+            alert('Advance paid successfully. Room number confirmed: ' + roomNumber);
+            renderNearbyList();
+            createNearbyMarkers();
+        }
+
+        function buildFallbackNearbyData() {
+            const fallback = [
+                { id: 't1', name: 'City Heritage Point', category: 'tourist_attraction', address: 'Main Street', distanceMeters: 120 },
+                { id: 'h1', name: 'Grand Plaza Hotel', category: 'hotel', address: 'Market Road', distanceMeters: 180 },
+                { id: 'l1', name: 'Comfort Stay Lodge', category: 'lodging', address: 'Station Lane', distanceMeters: 90 },
+                { id: 'p1', name: 'HP Fuel Station', category: 'gas_station', address: 'Ring Road', distanceMeters: 140 },
+                { id: 'l2', name: 'Green View Lodge', category: 'lodging', address: 'Lake Corner', distanceMeters: 260 }
+            ];
+            allNearbyPlaces = fallback.map(item => {
+                const cfg = nearbyCategoryConfig[item.category] || { icon: '📍', label: 'Place' };
+                const booking = lodgeBookings[item.id];
+                return {
+                    ...item,
+                    icon: cfg.icon,
+                    label: cfg.label,
+                    isBooked: Boolean(booking),
+                    roomNumber: booking ? booking.roomNumber : ''
+                };
+            });
+        }
+
+        function renderFallbackGoogleMap(destinationText) {
+            buildFallbackNearbyData();
+            const mapEl = document.getElementById('postBookingMap');
+            mapEl.innerHTML = `<iframe title="Google Map" width="100%" height="100%" style="border:0;" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(destinationText || 'City Center')}&output=embed"></iframe>`;
+            const summary = document.getElementById('nearbySummaryText');
+            summary.textContent = 'Map is shown in fallback mode. Add GOOGLE_MAPS_API_KEY or localStorage.googleMapsApiKey for live nearby results. List below still supports 200 m filtering.';
+            renderNearbyList();
+        }
+
+        async function showPostBookingMapForCar() {
+            const mapSection = document.getElementById('postBookingMapSection');
+            mapSection.classList.remove('hidden');
+            document.getElementById('nearbyPlacesList').innerHTML = '<div class="nearby-empty">Loading nearby places...</div>';
+            document.getElementById('nearbySummaryText').textContent = 'Showing visiting places, hotels, lodges, and petrol pumps. The list below shows only places within 200 meters.';
+            document.getElementById('lodgeBookingStatus').classList.add('hidden');
+            document.getElementById('lodgeBookingStatus').innerHTML = '';
+
+            const destinationText = (currentBooking && currentBooking.route && currentBooking.route.to) || 'Destination';
+            const mapsReady = await ensureGoogleMapsLoaded();
+
+            if (!mapsReady || !window.google || !window.google.maps || !window.google.maps.places) {
+                renderFallbackGoogleMap(destinationText);
+                return;
+            }
+
+            let center = await geocodeDestination(destinationText);
+            if (!center) center = await getCurrentLocationLatLng();
+            if (!center) center = new google.maps.LatLng(20.5937, 78.9629);
+
+            postBookingCenter = center;
+            const mapEl = document.getElementById('postBookingMap');
+            mapEl.innerHTML = '';
+            postBookingMap = new google.maps.Map(mapEl, {
+                center: postBookingCenter,
+                zoom: 16,
+                mapTypeId: google.maps.MapTypeId.ROADMAP
+            });
+
+            const service = new google.maps.places.PlacesService(postBookingMap);
+            const typeKeys = Object.keys(nearbyCategoryConfig);
+            const placeMap = {};
+
+            for (const typeKey of typeKeys) {
+                const found = await nearbySearchPromise(service, {
+                    location: postBookingCenter,
+                    radius: 500,
+                    type: [typeKey]
+                });
+
+                found.slice(0, 8).forEach(place => {
+                    if (!place.place_id || !place.geometry || !place.geometry.location) return;
+                    if (!placeMap[place.place_id]) {
+                        const distanceMeters = google.maps.geometry.spherical.computeDistanceBetween(postBookingCenter, place.geometry.location);
+                        const cfg = nearbyCategoryConfig[typeKey];
+                        const booking = lodgeBookings[place.place_id];
+                        placeMap[place.place_id] = {
+                            id: place.place_id,
+                            name: place.name || 'Unnamed place',
+                            category: typeKey,
+                            icon: cfg.icon,
+                            label: cfg.label,
+                            address: place.vicinity || '',
+                            distanceMeters: distanceMeters,
+                            position: place.geometry.location,
+                            isBooked: Boolean(booking),
+                            roomNumber: booking ? booking.roomNumber : ''
+                        };
+                    }
+                });
+            }
+
+            allNearbyPlaces = Object.values(placeMap).sort((a, b) => a.distanceMeters - b.distanceMeters);
+            createNearbyMarkers();
+            renderNearbyList();
         }
 
         function openCarBooking(index) {
